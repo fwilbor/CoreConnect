@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import Papa from "papaparse";
 import { useState, useTransition } from "react";
 import type { ImportRow, ImportSummary } from "@/lib/intake/import";
@@ -157,7 +158,7 @@ export function CsvImport() {
               {pending ? "Importing…" : `Import ${summary.created + summary.merged} rows`}
             </button>
           )}
-          {summary.committed && <a href="/app/leads" className="mt-3 inline-block text-sm underline">View leads</a>}
+          {summary.committed && <Link href="/app/leads" className="mt-3 inline-block text-sm underline">View leads</Link>}
         </section>
       )}
 
