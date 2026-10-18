@@ -236,15 +236,9 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Links use token_hash so the server-side /auth/confirm route can verify them
-# (the default templates put the token in the URL fragment, which servers never see).
-[auth.email.template.invite]
-subject = "You're invited to CoreConnect"
-content_path = "./supabase/templates/invite.html"
-
-[auth.email.template.magic_link]
-subject = "Your CoreConnect sign-in link"
-content_path = "./supabase/templates/magic_link.html"
+# Custom email templates need custom SMTP on Supabase (they are silently ignored
+# otherwise). Default links put the session in the URL fragment; /auth/callback
+# handles that. Add templates here once Resend or Postmark is connected.
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
