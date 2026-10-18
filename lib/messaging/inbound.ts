@@ -79,7 +79,9 @@ export async function handleInboundSms(db: Database, sms: InboundSms): Promise<"
       values (${ws.id}, ${leadId}, 'sms', 'in', 'one_off', ${sms.body.slice(0, 2000)}, ${sms.messageSid}, 'received', ${from})
       on conflict (channel, provider_id) where provider_id is not null do nothing`);
     // A reply ends the Nurture sequence.
-    await tx.execute(sql`update sequence_enrollments set status = 'stopped' where lead_id = ${leadId} and status = 'active'`);
+    await tx.execute(sql`
+      update sequence_enrollments set status = 'stopped' where lead_id = ${leadId} and status = 'active'
+        and sequence_id in (select id from sequences where system_key = 'nurture')`);
     return "threaded";
   });
 }

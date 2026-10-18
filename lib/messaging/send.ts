@@ -39,6 +39,9 @@ type SendContext = {
   email_unsubscribed_at: string | null;
   do_not_contact: boolean;
   contact_timezone: string | null;
+  deposit_amount_cents: number | null;
+  waitlist_position: number | null;
+  litter_name: string | null;
 };
 
 async function loadContext(tx: Tx, workspaceId: string, leadId: string): Promise<SendContext | undefined> {
@@ -46,8 +49,13 @@ async function loadContext(tx: Tx, workspaceId: string, leadId: string): Promise
     select w.id as workspace_id, w.name as workspace_name, w.slug, w.physical_address, w.sms_enabled, w.sms_number_e164,
            w.twilio_messaging_service_sid, w.timezone,
            l.id as lead_id, c.id as contact_id, c.first_name, c.last_name, c.email_norm, c.phone_e164,
-           c.sms_consent_at, c.email_unsubscribed_at, c.do_not_contact, c.timezone as contact_timezone
+           c.sms_consent_at, c.email_unsubscribed_at, c.do_not_contact, c.timezone as contact_timezone,
+           w.deposit_amount_cents, we.position as waitlist_position, li.name as litter_name
     from leads l join contacts c on c.id = l.contact_id join workspaces w on w.id = l.workspace_id
+    left join lateral (
+      select e.position, e.litter_id from waitlist_entries e
+      where e.lead_id = l.id and e.status = 'active' order by e.created_at desc limit 1) we on true
+    left join litters li on li.id = we.litter_id
     where l.id = ${leadId} and l.workspace_id = ${workspaceId}`);
   return row as SendContext | undefined;
 }
@@ -66,6 +74,9 @@ export function blockedReason(ctx: SendContext, channel: Channel): string | null
   return null;
 }
 
+export const formatCents = (cents: number) =>
+  (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
+
 export function siteUrl() {
   return (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 }
@@ -76,6 +87,10 @@ function mergeValues(ctx: SendContext) {
     last_name: ctx.last_name,
     business_name: ctx.workspace_name,
     application_link: `${siteUrl()}/${ctx.slug}/apply/${createToken("apply", ctx.lead_id)}`,
+    deposit_link: `${siteUrl()}/${ctx.slug}/deposit/${createToken("deposit", ctx.lead_id)}`,
+    deposit_amount: ctx.deposit_amount_cents !== null ? formatCents(ctx.deposit_amount_cents) : "",
+    waitlist_position: ctx.waitlist_position !== null ? String(ctx.waitlist_position) : "",
+    litter_name: ctx.litter_name ?? "",
   };
 }
 
@@ -135,7 +150,8 @@ export async function queueMessage(tx: Tx, input: QueueInput): Promise<QueueResu
     // A person reached out: that's a touch, and it ends the Nurture sequence.
     await tx.execute(sql`update leads set last_contacted_at = now() where id = ${input.leadId}`);
     await tx.execute(sql`
-      update sequence_enrollments set status = 'stopped' where lead_id = ${input.leadId} and status = 'active'`);
+      update sequence_enrollments set status = 'stopped' where lead_id = ${input.leadId} and status = 'active'
+        and sequence_id in (select id from sequences where system_key = 'nurture')`);
   }
   return { queued: true, messageId: (msg as { id: string }).id };
 }

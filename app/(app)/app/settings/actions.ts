@@ -13,6 +13,8 @@ const BusinessInput = z.object({
   brandColor: z.union([z.literal(""), z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use a color like #2f6f4e")]),
   logoUrl: z.union([z.literal(""), z.url({ protocol: /^https$/, error: "Use an https:// link" }).max(500)]),
   smsEnabled: z.boolean(),
+  depositAmount: z.union([z.literal(""), z.string().regex(/^\$?\d{1,6}(\.\d{1,2})?$/, "Enter a deposit like 300 or 300.00")]),
+  depositTerms: z.string().trim().max(4000),
 });
 
 export type BusinessState = { ok?: boolean; error?: string };
@@ -25,6 +27,8 @@ export async function saveBusinessSettings(_prev: BusinessState, formData: FormD
     brandColor: formData.get("brandColor") ?? "",
     logoUrl: formData.get("logoUrl") ?? "",
     smsEnabled: formData.get("smsEnabled") === "on",
+    depositAmount: String(formData.get("depositAmount") ?? "").trim(),
+    depositTerms: formData.get("depositTerms") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form" };
   const d = parsed.data;
@@ -37,6 +41,8 @@ export async function saveBusinessSettings(_prev: BusinessState, formData: FormD
       .set({
         name: d.name, physicalAddress: d.physicalAddress || null, brandColor: d.brandColor || null,
         logoUrl: d.logoUrl || null, smsEnabled: d.smsEnabled,
+        depositAmountCents: d.depositAmount ? Math.round(Number(d.depositAmount.replace("$", "")) * 100) : null,
+        depositTerms: d.depositTerms || null,
       })
       .where(eq(workspaces.id, workspace.id));
     return null;

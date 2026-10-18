@@ -21,6 +21,7 @@ export default async function SettingsPage() {
       .select({
         name: workspaces.name, physicalAddress: workspaces.physicalAddress, brandColor: workspaces.brandColor,
         logoUrl: workspaces.logoUrl, smsEnabled: workspaces.smsEnabled, smsNumber: workspaces.smsNumberE164,
+        depositAmountCents: workspaces.depositAmountCents, depositTerms: workspaces.depositTerms,
       })
       .from(workspaces)
       .where(eq(workspaces.id, workspace.id)),

@@ -1,4 +1,4 @@
-import { pgTable, uniqueIndex, foreignKey, unique, pgPolicy, check, uuid, text, timestamp, boolean, integer, date, index, smallint, jsonb, time } from "drizzle-orm/pg-core"
+import { pgTable, uniqueIndex, foreignKey, unique, pgPolicy, check, uuid, text, timestamp, boolean, date, integer, index, smallint, jsonb, time } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 
@@ -35,28 +35,6 @@ export const contacts = pgTable("contacts", {
 	check("contacts_phone_e164_check", sql`phone_e164 ~ '^\+[1-9][0-9]{6,14}$'::text`),
 	check("contacts_check", sql`(email_norm IS NOT NULL) OR (phone_e164 IS NOT NULL)`),
 	check("contacts_check1", sql`(sms_consent_at IS NULL) OR (sms_consent_text IS NOT NULL)`),
-]);
-
-export const pipelineStages = pgTable("pipeline_stages", {
-	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
-	workspaceId: uuid("workspace_id").notNull(),
-	name: text().notNull(),
-	position: integer().notNull(),
-	kind: text().notNull(),
-	isDefault: boolean("is_default").default(false).notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-}, (table) => [
-	uniqueIndex("pipeline_stages_one_default").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops")).where(sql`is_default`),
-	foreignKey({
-			columns: [table.workspaceId],
-			foreignColumns: [workspaces.id],
-			name: "pipeline_stages_workspace_id_fkey"
-		}).onDelete("cascade"),
-	unique("pipeline_stages_workspace_id_id_key").on(table.id, table.workspaceId),
-	unique("pipeline_stages_workspace_id_position_key").on(table.workspaceId, table.position),
-	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
-	check("pipeline_stages_kind_check", sql`kind = ANY (ARRAY['open'::text, 'won'::text, 'lost'::text])`),
 ]);
 
 export const litters = pgTable("litters", {
@@ -202,45 +180,29 @@ export const waitlistEntries = pgTable("waitlist_entries", {
 	check("waitlist_entries_check", sql`(status = 'active'::text) = ("position" IS NOT NULL)`),
 ]);
 
-export const payments = pgTable("payments", {
+export const pipelineStages = pgTable("pipeline_stages", {
 	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
 	workspaceId: uuid("workspace_id").notNull(),
-	leadId: uuid("lead_id"),
+	name: text().notNull(),
+	position: integer().notNull(),
 	kind: text().notNull(),
-	amountCents: integer("amount_cents").notNull(),
-	method: text().notNull(),
-	stripeSessionId: text("stripe_session_id"),
-	status: text().default('pending').notNull(),
-	termsSnapshot: text("terms_snapshot"),
-	note: text(),
-	recordedBy: uuid("recorded_by"),
-	paidAt: timestamp("paid_at", { withTimezone: true, mode: 'string' }),
+	isDefault: boolean("is_default").default(false).notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	systemKey: text("system_key"),
 }, (table) => [
-	index("payments_lead_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops"), table.leadId.asc().nullsLast().op("uuid_ops")),
+	uniqueIndex("pipeline_stages_one_default").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops")).where(sql`is_default`),
+	uniqueIndex("pipeline_stages_system_key_uniq").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops"), table.systemKey.asc().nullsLast().op("uuid_ops")).where(sql`(system_key IS NOT NULL)`),
 	foreignKey({
 			columns: [table.workspaceId],
 			foreignColumns: [workspaces.id],
-			name: "payments_workspace_id_fkey"
+			name: "pipeline_stages_workspace_id_fkey"
 		}).onDelete("cascade"),
-	foreignKey({
-			columns: [table.recordedBy],
-			foreignColumns: [users.id],
-			name: "payments_recorded_by_fkey"
-		}).onDelete("set null"),
-	foreignKey({
-			columns: [table.workspaceId, table.leadId],
-			foreignColumns: [leads.id, leads.workspaceId],
-			name: "payments_workspace_id_lead_id_fkey"
-		}).onDelete("set null"),
-	unique("payments_stripe_session_id_key").on(table.stripeSessionId),
+	unique("pipeline_stages_workspace_id_id_key").on(table.id, table.workspaceId),
+	unique("pipeline_stages_workspace_id_position_key").on(table.workspaceId, table.position),
 	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
-	check("payments_kind_check", sql`kind = ANY (ARRAY['deposit'::text, 'balance'::text, 'other'::text])`),
-	check("payments_amount_cents_check", sql`amount_cents > 0`),
-	check("payments_method_check", sql`method = ANY (ARRAY['stripe'::text, 'zelle'::text, 'cash'::text, 'other'::text])`),
-	check("payments_status_check", sql`status = ANY (ARRAY['pending'::text, 'paid'::text, 'refunded'::text])`),
-	check("payments_check", sql`(status <> 'paid'::text) OR (paid_at IS NOT NULL)`),
+	check("pipeline_stages_kind_check", sql`kind = ANY (ARRAY['open'::text, 'won'::text, 'lost'::text])`),
+	check("pipeline_stages_system_key_check", sql`system_key = ANY (ARRAY['new'::text, 'contacted'::text, 'application'::text, 'approved'::text, 'waitlisted'::text, 'deposit_paid'::text, 'matched'::text, 'placed'::text, 'closed'::text])`),
 ]);
 
 export const activities = pgTable("activities", {
@@ -275,6 +237,42 @@ export const activities = pgTable("activities", {
 	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
 	check("activities_type_check", sql`type = ANY (ARRAY['note'::text, 'stage_change'::text, 'task'::text, 'call_logged'::text, 'form'::text, 'payment'::text, 'system'::text])`),
 	check("activities_check", sql`(type = 'task'::text) OR (due_at IS NULL)`),
+]);
+
+export const workspaces = pgTable("workspaces", {
+	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
+	name: text().notNull(),
+	slug: text().notNull(),
+	businessType: text("business_type").notNull(),
+	logoUrl: text("logo_url"),
+	brandColor: text("brand_color"),
+	timezone: text().default('America/Chicago').notNull(),
+	digestTime: time("digest_time").default('07:00:00').notNull(),
+	smsEnabled: boolean("sms_enabled").default(false).notNull(),
+	stripeAccountId: text("stripe_account_id"),
+	depositAmountCents: integer("deposit_amount_cents"),
+	depositTerms: text("deposit_terms"),
+	physicalAddress: text("physical_address"),
+	smsNumberE164: text("sms_number_e164"),
+	twilioMessagingServiceSid: text("twilio_messaging_service_sid"),
+	sendingDomain: text("sending_domain"),
+	sendingDomainVerifiedAt: timestamp("sending_domain_verified_at", { withTimezone: true, mode: 'string' }),
+	faq: text(),
+	billingStatus: text("billing_status").default('active').notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	stripeChargesEnabled: boolean("stripe_charges_enabled").default(false).notNull(),
+}, (table) => [
+	unique("workspaces_slug_key").on(table.slug),
+	pgPolicy("member_read", { as: "permissive", for: "select", to: ["authenticated"], using: sql`(id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))` }),
+	pgPolicy("owner_update", { as: "permissive", for: "update", to: ["authenticated"] }),
+	check("workspaces_name_check", sql`(length(name) >= 1) AND (length(name) <= 120)`),
+	check("workspaces_slug_check", sql`(slug ~ '^[a-z0-9](-?[a-z0-9])*$'::text) AND ((length(slug) >= 3) AND (length(slug) <= 40))`),
+	check("workspaces_business_type_check", sql`business_type = ANY (ARRAY['breeder'::text, 'service'::text])`),
+	check("workspaces_brand_color_check", sql`brand_color ~ '^#[0-9a-fA-F]{6}$'::text`),
+	check("workspaces_deposit_amount_cents_check", sql`deposit_amount_cents >= 0`),
+	check("workspaces_sms_number_e164_check", sql`sms_number_e164 ~ '^\+[1-9][0-9]{6,14}$'::text`),
+	check("workspaces_billing_status_check", sql`billing_status = ANY (ARRAY['active'::text, 'past_due'::text, 'read_only'::text])`),
 ]);
 
 export const sequenceSteps = pgTable("sequence_steps", {
@@ -339,41 +337,6 @@ export const sequenceEnrollments = pgTable("sequence_enrollments", {
 		}).onDelete("cascade"),
 	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
 	check("sequence_enrollments_status_check", sql`status = ANY (ARRAY['active'::text, 'completed'::text, 'stopped'::text])`),
-]);
-
-export const workspaces = pgTable("workspaces", {
-	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
-	name: text().notNull(),
-	slug: text().notNull(),
-	businessType: text("business_type").notNull(),
-	logoUrl: text("logo_url"),
-	brandColor: text("brand_color"),
-	timezone: text().default('America/Chicago').notNull(),
-	digestTime: time("digest_time").default('07:00:00').notNull(),
-	smsEnabled: boolean("sms_enabled").default(false).notNull(),
-	stripeAccountId: text("stripe_account_id"),
-	depositAmountCents: integer("deposit_amount_cents"),
-	depositTerms: text("deposit_terms"),
-	physicalAddress: text("physical_address"),
-	smsNumberE164: text("sms_number_e164"),
-	twilioMessagingServiceSid: text("twilio_messaging_service_sid"),
-	sendingDomain: text("sending_domain"),
-	sendingDomainVerifiedAt: timestamp("sending_domain_verified_at", { withTimezone: true, mode: 'string' }),
-	faq: text(),
-	billingStatus: text("billing_status").default('active').notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-}, (table) => [
-	unique("workspaces_slug_key").on(table.slug),
-	pgPolicy("member_read", { as: "permissive", for: "select", to: ["authenticated"], using: sql`(id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))` }),
-	pgPolicy("owner_update", { as: "permissive", for: "update", to: ["authenticated"] }),
-	check("workspaces_name_check", sql`(length(name) >= 1) AND (length(name) <= 120)`),
-	check("workspaces_slug_check", sql`(slug ~ '^[a-z0-9](-?[a-z0-9])*$'::text) AND ((length(slug) >= 3) AND (length(slug) <= 40))`),
-	check("workspaces_business_type_check", sql`business_type = ANY (ARRAY['breeder'::text, 'service'::text])`),
-	check("workspaces_brand_color_check", sql`brand_color ~ '^#[0-9a-fA-F]{6}$'::text`),
-	check("workspaces_deposit_amount_cents_check", sql`deposit_amount_cents >= 0`),
-	check("workspaces_sms_number_e164_check", sql`sms_number_e164 ~ '^\+[1-9][0-9]{6,14}$'::text`),
-	check("workspaces_billing_status_check", sql`billing_status = ANY (ARRAY['active'::text, 'past_due'::text, 'read_only'::text])`),
 ]);
 
 export const users = pgTable("users", {
@@ -513,6 +476,72 @@ export const forms = pgTable("forms", {
 	check("forms_fields_max_15", sql`jsonb_array_length(fields) <= 15`),
 ]);
 
+export const payments = pgTable("payments", {
+	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
+	workspaceId: uuid("workspace_id").notNull(),
+	leadId: uuid("lead_id"),
+	kind: text().notNull(),
+	amountCents: integer("amount_cents").notNull(),
+	method: text().notNull(),
+	stripeSessionId: text("stripe_session_id"),
+	status: text().default('pending').notNull(),
+	termsSnapshot: text("terms_snapshot"),
+	note: text(),
+	recordedBy: uuid("recorded_by"),
+	paidAt: timestamp("paid_at", { withTimezone: true, mode: 'string' }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("payments_lead_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops"), table.leadId.asc().nullsLast().op("uuid_ops")),
+	index("payments_pending_session_idx").using("btree", table.stripeSessionId.asc().nullsLast().op("text_ops")).where(sql`(stripe_session_id IS NOT NULL)`),
+	foreignKey({
+			columns: [table.workspaceId],
+			foreignColumns: [workspaces.id],
+			name: "payments_workspace_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.recordedBy],
+			foreignColumns: [users.id],
+			name: "payments_recorded_by_fkey"
+		}).onDelete("set null"),
+	foreignKey({
+			columns: [table.workspaceId, table.leadId],
+			foreignColumns: [leads.id, leads.workspaceId],
+			name: "payments_workspace_id_lead_id_fkey"
+		}).onDelete("set null"),
+	unique("payments_stripe_session_id_key").on(table.stripeSessionId),
+	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
+	check("payments_kind_check", sql`kind = ANY (ARRAY['deposit'::text, 'balance'::text, 'other'::text])`),
+	check("payments_amount_cents_check", sql`amount_cents > 0`),
+	check("payments_method_check", sql`method = ANY (ARRAY['stripe'::text, 'zelle'::text, 'cash'::text, 'other'::text])`),
+	check("payments_check", sql`(status <> 'paid'::text) OR (paid_at IS NOT NULL)`),
+	check("payments_status_check", sql`status = ANY (ARRAY['pending'::text, 'paid'::text, 'refunded'::text, 'failed'::text])`),
+]);
+
+export const templates = pgTable("templates", {
+	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
+	workspaceId: uuid("workspace_id").notNull(),
+	channel: text().notNull(),
+	name: text().notNull(),
+	subject: text(),
+	body: text().notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	systemKey: text("system_key"),
+}, (table) => [
+	uniqueIndex("templates_system_key_uniq").using("btree", table.workspaceId.asc().nullsLast().op("text_ops"), table.systemKey.asc().nullsLast().op("text_ops")).where(sql`(system_key IS NOT NULL)`),
+	foreignKey({
+			columns: [table.workspaceId],
+			foreignColumns: [workspaces.id],
+			name: "templates_workspace_id_fkey"
+		}).onDelete("cascade"),
+	unique("templates_workspace_id_id_key").on(table.id, table.workspaceId),
+	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
+	check("templates_channel_check", sql`channel = ANY (ARRAY['email'::text, 'sms'::text])`),
+	check("templates_check", sql`(channel = 'sms'::text) OR (subject IS NOT NULL)`),
+	check("templates_system_key_check", sql`system_key = ANY (ARRAY['auto_reply_email'::text, 'auto_reply_sms'::text, 'decline'::text, 'nurture_1'::text, 'nurture_2'::text, 'nurture_3'::text, 'application_link'::text, 'application_reminder_email'::text, 'application_reminder_sms'::text, 'approved'::text, 'deposit_link'::text, 'deposit_reminder'::text, 'deposit_receipt'::text, 'litter_born'::text])`),
+]);
+
 export const messages = pgTable("messages", {
 	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
 	workspaceId: uuid("workspace_id").notNull(),
@@ -574,30 +603,6 @@ export const messages = pgTable("messages", {
 	check("messages_kind_check", sql`kind = ANY (ARRAY['one_off'::text, 'auto_reply'::text, 'sequence'::text, 'reminder'::text, 'system'::text])`),
 ]);
 
-export const templates = pgTable("templates", {
-	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
-	workspaceId: uuid("workspace_id").notNull(),
-	channel: text().notNull(),
-	name: text().notNull(),
-	subject: text(),
-	body: text().notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	systemKey: text("system_key"),
-}, (table) => [
-	uniqueIndex("templates_system_key_uniq").using("btree", table.workspaceId.asc().nullsLast().op("text_ops"), table.systemKey.asc().nullsLast().op("text_ops")).where(sql`(system_key IS NOT NULL)`),
-	foreignKey({
-			columns: [table.workspaceId],
-			foreignColumns: [workspaces.id],
-			name: "templates_workspace_id_fkey"
-		}).onDelete("cascade"),
-	unique("templates_workspace_id_id_key").on(table.id, table.workspaceId),
-	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
-	check("templates_channel_check", sql`channel = ANY (ARRAY['email'::text, 'sms'::text])`),
-	check("templates_check", sql`(channel = 'sms'::text) OR (subject IS NOT NULL)`),
-	check("templates_system_key_check", sql`system_key = ANY (ARRAY['auto_reply_email'::text, 'auto_reply_sms'::text, 'decline'::text, 'nurture_1'::text, 'nurture_2'::text, 'nurture_3'::text])`),
-]);
-
 export const sequences = pgTable("sequences", {
 	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
 	workspaceId: uuid("workspace_id").notNull(),
@@ -615,5 +620,5 @@ export const sequences = pgTable("sequences", {
 		}).onDelete("cascade"),
 	unique("sequences_workspace_id_id_key").on(table.id, table.workspaceId),
 	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
-	check("sequences_system_key_check", sql`system_key = 'nurture'::text`),
+	check("sequences_system_key_check", sql`system_key = ANY (ARRAY['nurture'::text, 'application_reminder'::text, 'deposit_reminder'::text])`),
 ]);

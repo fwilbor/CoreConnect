@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
@@ -41,9 +42,9 @@ export default function AuthCallbackPage() {
           <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
             Sign-in links work once and expire after an hour. Request a new one and use it on this device.
           </p>
-          <a href="/login" className="mt-4 text-sm underline">
+          <Link href="/login" className="mt-4 text-sm underline">
             Get a new sign-in link
-          </a>
+          </Link>
         </>
       ) : (
         <p className="text-sm text-neutral-600 dark:text-neutral-300">Signing you in…</p>

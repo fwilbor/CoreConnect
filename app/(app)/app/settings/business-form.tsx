@@ -6,7 +6,10 @@ import { saveBusinessSettings, type BusinessState } from "./actions";
 const input = "mt-1 w-full rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 text-sm dark:border-neutral-700";
 
 export function BusinessForm({ initial }: {
-  initial: { name: string; physicalAddress: string | null; brandColor: string | null; logoUrl: string | null; smsEnabled: boolean; smsNumber: string | null };
+  initial: {
+    name: string; physicalAddress: string | null; brandColor: string | null; logoUrl: string | null; smsEnabled: boolean;
+    smsNumber: string | null; depositAmountCents: number | null; depositTerms: string | null;
+  };
 }) {
   const [state, action, pending] = useActionState<BusinessState, FormData>(saveBusinessSettings, {});
   return (
@@ -30,6 +33,19 @@ export function BusinessForm({ initial }: {
           <input name="logoUrl" type="url" defaultValue={initial.logoUrl ?? ""} placeholder="https://…" className={input} />
         </label>
       </div>
+      <fieldset className="space-y-3 rounded-md border border-neutral-200 p-3 text-sm dark:border-neutral-800">
+        <legend className="px-1 font-medium">Deposits</legend>
+        <label className="block">
+          Deposit amount ($)
+          <input name="depositAmount" inputMode="decimal" placeholder="300"
+            defaultValue={initial.depositAmountCents !== null ? (initial.depositAmountCents / 100).toFixed(2) : ""} className={input} />
+        </label>
+        <label className="block">
+          Deposit terms and refund policy (shown at checkout and saved with each deposit)
+          <textarea name="depositTerms" rows={4} maxLength={4000} defaultValue={initial.depositTerms ?? ""}
+            placeholder="Deposits hold your place on the waitlist and are applied to the purchase price. Deposits are non-refundable but transferable to a future litter." className={input} />
+        </label>
+      </fieldset>
       <fieldset className="rounded-md border border-neutral-200 p-3 text-sm dark:border-neutral-800">
         <legend className="px-1 font-medium">Text messages</legend>
         <p className="text-neutral-500">

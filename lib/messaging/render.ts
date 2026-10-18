@@ -2,7 +2,10 @@
 // gets an HTML version with a CAN-SPAM footer (business address and a one-click
 // unsubscribe link).
 
-export const MERGE_FIELDS = ["first_name", "last_name", "business_name", "application_link"] as const;
+export const MERGE_FIELDS = [
+  "first_name", "last_name", "business_name", "application_link", "deposit_link", "deposit_amount",
+  "waitlist_position", "litter_name",
+] as const;
 export type MergeValues = Partial<Record<(typeof MERGE_FIELDS)[number], string | null>>;
 
 // Unknown fields render as empty so a typo never leaks "{{...}}" to a buyer.

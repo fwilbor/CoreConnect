@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { FIELD_TYPES, MAX_CUSTOM_FIELDS, type FieldType, type FormField } from "@/lib/intake/fields";
-import { saveInquiryForm, type SaveFormState } from "./actions";
+import { saveForm, type SaveFormState } from "./actions";
 
 const TYPE_LABELS: Record<FieldType, string> = {
   text: "Text", select: "Pick one", multi_select: "Pick several", yes_no: "Yes / no", date: "Date",
@@ -23,11 +23,11 @@ function keyFor(label: string, taken: Set<string>) {
 
 type Draft = FormField & { optionsText: string };
 
-export function FieldBuilder(props: { initialTitle: string; initialSuccessMessage: string; initialFields: FormField[] }) {
+export function FieldBuilder(props: { kind: "inquiry" | "application"; initialTitle: string; initialSuccessMessage: string; initialFields: FormField[] }) {
   const [fields, setFields] = useState<Draft[]>(
     props.initialFields.map((f) => ({ ...f, optionsText: (f.options ?? []).join("\n") })),
   );
-  const [state, action, pending] = useActionState<SaveFormState, FormData>(saveInquiryForm, {});
+  const [state, action, pending] = useActionState<SaveFormState, FormData>(saveForm, {});
 
   const update = (i: number, patch: Partial<Draft>) =>
     setFields((fs) => fs.map((f, j) => (j === i ? { ...f, ...patch } : f)));
@@ -96,6 +96,7 @@ export function FieldBuilder(props: { initialTitle: string; initialSuccessMessag
         ))}
       </ol>
 
+      <input type="hidden" name="kind" value={props.kind} />
       <input type="hidden" name="fields" value={JSON.stringify(payload)} />
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" onClick={add} disabled={fields.length >= MAX_CUSTOM_FIELDS} className="rounded-md border border-neutral-300 px-3 py-2 text-sm disabled:opacity-40 dark:border-neutral-700">

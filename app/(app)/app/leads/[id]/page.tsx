@@ -6,7 +6,9 @@ import { withUser } from "@/lib/db";
 import { getLeadDetail, type LeadMessage, type TimelineItem } from "@/lib/leads/queries";
 import { requireWorkspace } from "@/lib/workspace";
 import { leadName } from "../lead-flags";
+import { listPayments } from "@/lib/payments";
 import { ContactCard, Composer, LeadControls, MergeReviewBanner, TaskList } from "./lead-panels";
+import { ApplicationPanel, PaymentsPanel, WaitlistPanel } from "./qualify-panels";
 
 export const metadata = { title: "Lead · CoreConnect" };
 
@@ -19,7 +21,26 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
     await tx.execute(sql`
       update messages set read_at = now()
       where lead_id = ${id} and workspace_id = ${workspace.id} and direction = 'in' and read_at is null`);
-    return getLeadDetail(tx, workspace.id, id);
+    const lead = await getLeadDetail(tx, workspace.id, id);
+    if (!lead) return null;
+    const [extra] = (await tx.execute(sql`
+      select
+        exists (select 1 from form_submissions fs join forms f on f.id = fs.form_id
+                where fs.lead_id = ${id} and f.kind = 'application') as applied,
+        exists (select 1 from messages m join templates t on t.id = m.template_id
+                where m.lead_id = ${id} and t.system_key = 'application_link') as app_sent,
+        (w.deposit_amount_cents is not null and w.stripe_charges_enabled) as deposits_ready
+      from workspaces w where w.id = ${workspace.id}`)) as unknown as { applied: boolean; app_sent: boolean; deposits_ready: boolean }[];
+    const [entry] = (await tx.execute(sql`
+      select e.id, e.position, li.name as litter_name, e.sex_pref, e.color_pref
+      from waitlist_entries e join litters li on li.id = e.litter_id
+      where e.lead_id = ${id} and e.status = 'active' order by e.created_at desc limit 1`)) as unknown as {
+      id: string; position: number; litter_name: string; sex_pref: string | null; color_pref: string | null;
+    }[];
+    const litters = (await tx.execute(sql`
+      select id, name, is_general from litters where workspace_id = ${workspace.id} and status <> 'closed'
+      order by is_general desc, expected_date nulls last`)) as unknown as { id: string; name: string; is_general: boolean }[];
+    return { ...lead, extra, entry: entry ?? null, litters, payments: await listPayments(tx, workspace.id, id) };
   });
   if (!detail) notFound();
   const { lead } = detail;
@@ -37,6 +58,13 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[20rem_1fr]">
         <aside className="space-y-6">
+          <ApplicationPanel
+            leadId={lead.id}
+            status={detail.extra.applied ? "submitted" : detail.extra.app_sent ? "sent" : "not_sent"}
+            closed={lead.closed_at !== null}
+            litters={detail.litters}
+            depositsReady={detail.extra.deposits_ready}
+          />
           <LeadControls
             leadId={lead.id}
             stageId={lead.stage_id}
@@ -46,6 +74,8 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
             assigneeId={lead.assigned_user_id}
             members={detail.members}
           />
+          <WaitlistPanel leadId={lead.id} closed={lead.closed_at !== null} litters={detail.litters} entry={detail.entry} />
+          <PaymentsPanel leadId={lead.id} payments={detail.payments} />
           <ContactCard
             leadId={lead.id}
             contactId={lead.contact_id}
@@ -123,11 +153,17 @@ function describe(item: TimelineItem): string {
     case "call_logged": return `${CHANNELS[String(p.channel)] ?? "Contact"} logged`;
     case "stage_change": return `Moved from ${p.from ?? "?"} to ${p.to}${p.reason ? ` (${p.reason})` : ""}`;
     case "task": return `Task: ${p.title}${item.done_at ? " (done)" : ` · due ${fmt(item.due_at!)}`}`;
-    case "form": return p.event === "inquiry_merged" ? "Sent another inquiry" : "Submitted the inquiry form";
-    case "payment": return "Payment recorded";
+    case "form":
+      if (p.event === "application_submitted") return "Submitted the application";
+      return p.event === "inquiry_merged" ? "Sent another inquiry" : "Submitted the inquiry form";
+    case "payment": {
+      const amount = typeof p.amount_cents === "number" ? (p.amount_cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" }) : "";
+      return `${p.kind === "deposit" ? "Deposit" : "Payment"} ${amount} ${p.status === "paid" ? "received" : String(p.status ?? "")} (${p.method})`;
+    }
     case "system":
       if (p.event === "lead_created") return p.source === "import" ? "Imported from CSV" : `Lead added (${p.source})`;
       if (p.event === "inquiry_merged") return "Added again; merged into this lead";
+      if (p.event === "application_approved") return "Application approved";
       if (p.event === "sms_opt_out") return `Opted out of texts (replied ${p.keyword})`;
       if (p.event === "sms_opt_in") return `Opted back in to texts (replied ${p.keyword})`;
       if (p.event === "email_unsubscribed") return p.reason === "complaint" ? "Marked an email as spam; unsubscribed" : "Unsubscribed from email";

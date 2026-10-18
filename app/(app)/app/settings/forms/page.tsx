@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import QRCode from "qrcode";
 import { withUser } from "@/lib/db";
@@ -11,12 +11,15 @@ export const metadata = { title: "Forms · CoreConnect" };
 
 export default async function FormsSettingsPage() {
   const { user, workspace } = await requireOwner();
-  const [form] = await withUser(user.id, (tx) =>
+  const rows = await withUser(user.id, (tx) =>
     tx
-      .select({ title: forms.title, successMessage: forms.successMessage, fields: forms.fields })
+      .select({ kind: forms.kind, title: forms.title, successMessage: forms.successMessage, fields: forms.fields })
       .from(forms)
-      .where(and(eq(forms.workspaceId, workspace.id), eq(forms.kind, "inquiry"))),
+      .where(eq(forms.workspaceId, workspace.id)),
   );
+  const form = rows.find((r) => r.kind === "inquiry");
+  const application = rows.find((r) => r.kind === "application");
+  const appFields = FormFields.safeParse(application?.fields);
 
   const h = await headers();
   const origin = process.env.NEXT_PUBLIC_SITE_URL && !h.get("host")
@@ -57,9 +60,23 @@ export default async function FormsSettingsPage() {
           Add up to 15 questions of your own below.
         </p>
         <FieldBuilder
+          kind="inquiry"
           initialTitle={form?.title ?? "Inquiry"}
           initialSuccessMessage={form?.successMessage ?? ""}
           initialFields={fields.success ? fields.data : []}
+        />
+      </section>
+
+      <section className="mt-12">
+        <h2 className="text-lg font-semibold">Application questions</h2>
+        <p className="text-sm text-neutral-500">
+          Sent by link from a lead&apos;s page. Answers appear on the lead so you can approve or decline in one place.
+        </p>
+        <FieldBuilder
+          kind="application"
+          initialTitle={application?.title ?? "Application"}
+          initialSuccessMessage={application?.successMessage ?? ""}
+          initialFields={appFields.success ? appFields.data : []}
         />
       </section>
     </main>

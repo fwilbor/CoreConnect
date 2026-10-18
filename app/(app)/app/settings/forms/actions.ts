@@ -16,8 +16,9 @@ const SaveInput = z.object({
 
 export type SaveFormState = { ok?: boolean; error?: string };
 
-export async function saveInquiryForm(_prev: SaveFormState, formData: FormData): Promise<SaveFormState> {
+export async function saveForm(_prev: SaveFormState, formData: FormData): Promise<SaveFormState> {
   const { user, workspace } = await requireOwner();
+  const kind = formData.get("kind") === "application" ? "application" : "inquiry";
   let fields: unknown;
   try {
     fields = JSON.parse(String(formData.get("fields") ?? "[]"));
@@ -38,7 +39,7 @@ export async function saveInquiryForm(_prev: SaveFormState, formData: FormData):
     tx
       .update(forms)
       .set({ title: parsed.data.title, successMessage: parsed.data.successMessage || null, fields: parsed.data.fields })
-      .where(and(eq(forms.workspaceId, workspace.id), eq(forms.kind, "inquiry"))),
+      .where(and(eq(forms.workspaceId, workspace.id), eq(forms.kind, kind))),
   );
   revalidatePath("/app/settings/forms");
   return { ok: true };

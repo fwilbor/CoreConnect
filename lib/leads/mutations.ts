@@ -5,7 +5,8 @@ import { normalizeEmail, normalizePhone } from "@/lib/intake/normalize";
 
 // All of these run inside withUser(), so RLS limits them to the user's
 // workspaces; workspaceId is still passed so every statement names its tenant.
-export type Ctx = { workspaceId: string; userId: string };
+// userId is null for system actions (e.g. a Stripe webhook).
+export type Ctx = { workspaceId: string; userId: string | null };
 
 export class LeadError extends Error {}
 
@@ -32,8 +33,8 @@ async function requireLead(tx: Tx, ctx: Ctx, leadId: string) {
 }
 
 // Moving into a won or lost stage closes the lead; moving back to an open
-// stage reopens it. Any stage change stops active sequences (Automations:
-// Nurture stops on stage change).
+// stage reopens it. Any stage change stops Nurture (Automations: Nurture stops
+// on stage change); reminders have their own stop conditions.
 export async function moveLeadToStage(tx: Tx, ctx: Ctx, leadId: string, stageId: string, closedReason?: string | null) {
   const lead = await requireLead(tx, ctx, leadId);
   if (lead.stage_id === stageId) return;
@@ -54,7 +55,8 @@ export async function moveLeadToStage(tx: Tx, ctx: Ctx, leadId: string, stageId:
     where id = ${leadId} and workspace_id = ${ctx.workspaceId}`);
   await tx.execute(sql`
     update sequence_enrollments set status = 'stopped'
-    where lead_id = ${leadId} and workspace_id = ${ctx.workspaceId} and status = 'active'`);
+    where lead_id = ${leadId} and workspace_id = ${ctx.workspaceId} and status = 'active'
+      and sequence_id in (select id from sequences where system_key = 'nurture')`);
   await activity(tx, ctx, leadId, "stage_change", {
     from_stage_id: from?.id, from: from?.name, to_stage_id: to.id, to: to.name, ...(reason ? { reason } : {}),
   });
@@ -163,4 +165,21 @@ export async function updateContact(tx: Tx, ctx: Ctx, contactId: string, input: 
 // After a person reviews a possible duplicate and decides they're different people.
 export async function clearMergeReview(tx: Tx, ctx: Ctx, contactId: string) {
   await tx.execute(sql`update contacts set needs_merge_review = false where id = ${contactId} and workspace_id = ${ctx.workspaceId}`);
+}
+
+export type StageKey = "new" | "contacted" | "application" | "approved" | "waitlisted" | "deposit_paid" | "matched" | "placed" | "closed";
+
+// Moves an open lead forward to a keyed stage; never moves it back or reopens
+// it. Used when a payment, waitlist or application event implies progress.
+export async function advanceToStage(tx: Tx, ctx: Ctx, leadId: string, key: StageKey) {
+  const [row] = (await tx.execute(sql`
+    select t.id as target_id, t.position as target_position, cur.position as current_position, l.closed_at
+    from leads l join pipeline_stages cur on cur.id = l.stage_id
+    join pipeline_stages t on t.workspace_id = l.workspace_id and t.system_key = ${key}
+    where l.id = ${leadId} and l.workspace_id = ${ctx.workspaceId}`)) as unknown as {
+    target_id: string; target_position: number; current_position: number; closed_at: string | null;
+  }[];
+  if (!row || row.closed_at || row.current_position >= row.target_position) return false;
+  await moveLeadToStage(tx, ctx, leadId, row.target_id);
+  return true;
 }

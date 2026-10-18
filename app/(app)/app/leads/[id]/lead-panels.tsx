@@ -218,7 +218,7 @@ export function Composer({ leadId, templates }: { leadId: string; templates: Tem
     });
 
   return (
-    <section>
+    <section id="composer" className="scroll-mt-4">
       <div className="flex flex-wrap gap-1 text-sm" role="tablist">
         {modes.map(([value, label]) => (
           <button key={value} type="button" role="tab" aria-selected={mode === value} onClick={() => switchMode(value)}
