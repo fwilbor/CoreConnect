@@ -7,10 +7,10 @@ import { switchWorkspace } from "./actions";
 const NAV = [
   { href: "/app", label: "Today" },
   { href: "/app/leads", label: "Leads" },
+  { href: "/app/inbox", label: "Inbox" },
   { href: "/app/leads/new", label: "Quick add" },
   { href: "/app/import", label: "Import" },
-  { href: "/app/settings/forms", label: "Forms" },
-  { href: "/app/settings/stages", label: "Stages" },
+  { href: "/app/settings", label: "Settings" },
 ];
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {

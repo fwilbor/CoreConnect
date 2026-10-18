@@ -1,0 +1,47 @@
+"use server";
+
+import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { withUser } from "@/lib/db";
+import { workspaces } from "@/lib/db/schema";
+import { requireOwner } from "@/lib/workspace";
+
+const BusinessInput = z.object({
+  name: z.string().trim().min(1, "Business name is required").max(120),
+  physicalAddress: z.string().trim().max(300),
+  brandColor: z.union([z.literal(""), z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use a color like #2f6f4e")]),
+  logoUrl: z.union([z.literal(""), z.url({ protocol: /^https$/, error: "Use an https:// link" }).max(500)]),
+  smsEnabled: z.boolean(),
+});
+
+export type BusinessState = { ok?: boolean; error?: string };
+
+export async function saveBusinessSettings(_prev: BusinessState, formData: FormData): Promise<BusinessState> {
+  const { user, workspace } = await requireOwner();
+  const parsed = BusinessInput.safeParse({
+    name: formData.get("name"),
+    physicalAddress: formData.get("physicalAddress") ?? "",
+    brandColor: formData.get("brandColor") ?? "",
+    logoUrl: formData.get("logoUrl") ?? "",
+    smsEnabled: formData.get("smsEnabled") === "on",
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form" };
+  const d = parsed.data;
+
+  const error = await withUser(user.id, async (tx) => {
+    const [current] = await tx.select({ number: workspaces.smsNumberE164 }).from(workspaces).where(eq(workspaces.id, workspace.id));
+    if (d.smsEnabled && !current?.number) return "SMS can be turned on once a number is set up for this workspace";
+    await tx
+      .update(workspaces)
+      .set({
+        name: d.name, physicalAddress: d.physicalAddress || null, brandColor: d.brandColor || null,
+        logoUrl: d.logoUrl || null, smsEnabled: d.smsEnabled,
+      })
+      .where(eq(workspaces.id, workspace.id));
+    return null;
+  });
+  if (error) return { error };
+  revalidatePath("/app", "layout");
+  return { ok: true };
+}

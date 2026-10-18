@@ -6,6 +6,7 @@ import {
   addNoteAction, addTaskAction, assignLeadAction, clearMergeReviewAction, logContactAction, moveLeadAction,
   setRatingAction, setTagsAction, setTaskDoneAction, updateContactAction, type ActionResult,
 } from "../actions";
+import { sendMessageAction } from "./message-actions";
 
 const input = "w-full rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 text-sm dark:border-neutral-700";
 const button = "rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900";
@@ -168,34 +169,92 @@ export function ContactCard(props: {
   );
 }
 
-export function Composer({ leadId }: { leadId: string }) {
-  const [mode, setMode] = useState<"note" | "call" | "text" | "dm" | "in_person">("note");
+type Template = { id: string; name: string; channel: "email" | "sms"; subject: string | null; body: string };
+type Mode = "email" | "sms" | "note" | "call" | "text" | "dm" | "in_person";
+
+export function Composer({ leadId, templates }: { leadId: string; templates: Template[] }) {
+  const [mode, setMode] = useState<Mode>("email");
   const [text, setText] = useState("");
+  const [subject, setSubject] = useState("");
+  const [templateId, setTemplateId] = useState<string>("");
+  const [notice, setNotice] = useState<string | null>(null);
   const { pending, error, run } = useAction();
-  const modes = [["note", "Note"], ["call", "Log call"], ["text", "Log text"], ["dm", "Log DM"], ["in_person", "Met in person"]] as const;
+  const [sending, startSend] = useTransition();
+  const [sendError, setSendError] = useState<string | null>(null);
+  const modes = [
+    ["email", "Email"], ["sms", "SMS"], ["note", "Note"], ["call", "Log call"], ["text", "Log text"], ["dm", "Log DM"],
+    ["in_person", "Met in person"],
+  ] as const;
+  const messaging = mode === "email" || mode === "sms";
+
+  const pickTemplate = (id: string) => {
+    setTemplateId(id);
+    const t = templates.find((x) => x.id === id);
+    if (t) {
+      setText(t.body);
+      setSubject(t.subject ?? "");
+    }
+  };
+  const switchMode = (m: Mode) => {
+    setMode(m);
+    setTemplateId("");
+    setNotice(null);
+    setSendError(null);
+  };
+
+  const send = () =>
+    startSend(async () => {
+      setSendError(null);
+      setNotice(null);
+      const result = await sendMessageAction({
+        leadId, channel: mode as "email" | "sms", templateId: templateId || null, subject, body: text,
+      });
+      if (!result.ok) return setSendError(result.error);
+      if (result.status === "failed") return setSendError(result.error ?? "Sending failed");
+      setText("");
+      setSubject("");
+      setTemplateId("");
+      setNotice(result.status === "sent" ? "Sent." : "Queued; it will go out shortly.");
+    });
 
   return (
     <section>
       <div className="flex flex-wrap gap-1 text-sm" role="tablist">
         {modes.map(([value, label]) => (
-          <button key={value} type="button" role="tab" aria-selected={mode === value} onClick={() => setMode(value)}
+          <button key={value} type="button" role="tab" aria-selected={mode === value} onClick={() => switchMode(value)}
             className={`rounded-md px-2 py-1 ${mode === value ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900" : "border border-neutral-300 dark:border-neutral-700"}`}>
             {label}
           </button>
         ))}
       </div>
-      <form className="mt-2" onSubmit={(e) => {
+      <form className="mt-2 space-y-2" onSubmit={(e) => {
         e.preventDefault();
+        if (messaging) return send();
         run(() => (mode === "note" ? addNoteAction(leadId, text) : logContactAction(leadId, mode, text)), () => setText(""));
       }}>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={5000}
-          aria-label={mode === "note" ? "Note" : "What happened (optional)"}
-          placeholder={mode === "note" ? "Add a note" : "What happened? (optional)"} className={input} />
-        <ErrorText error={error} />
-        <button disabled={pending || (mode === "note" && !text.trim())} className={`${button} mt-2`}>
-          {mode === "note" ? "Save note" : "Log it"}
+        {messaging && (
+          <select value={templateId} onChange={(e) => pickTemplate(e.target.value)} aria-label="Template" className={input}>
+            <option value="">Write a new message</option>
+            {templates.filter((t) => t.channel === mode).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        )}
+        {mode === "email" && (
+          <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" aria-label="Subject" maxLength={200} className={input} />
+        )}
+        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={messaging ? 5 : 3} maxLength={mode === "sms" ? 1000 : 5000}
+          aria-label={messaging ? "Message" : mode === "note" ? "Note" : "What happened (optional)"}
+          placeholder={messaging ? "Hi {{first_name}}, …" : mode === "note" ? "Add a note" : "What happened? (optional)"} className={input} />
+        {messaging && (
+          <p className="text-xs text-neutral-500">
+            Merge fields: {"{{first_name}}"}, {"{{last_name}}"}, {"{{business_name}}"}, {"{{application_link}}"}.
+            {mode === "email" ? " Your business address and an unsubscribe link are added automatically." : ` ${text.length}/1000`}
+          </p>
+        )}
+        <ErrorText error={error ?? sendError} />
+        {notice && <p className="text-sm text-green-700 dark:text-green-400" role="status">{notice}</p>}
+        <button disabled={pending || sending || (!text.trim() && (mode === "note" || messaging)) || (mode === "email" && !subject.trim())} className={button}>
+          {messaging ? (sending ? "Sending…" : `Send ${mode === "email" ? "email" : "text"}`) : mode === "note" ? "Save note" : "Log it"}
         </button>
-        <p className="mt-1 text-xs text-neutral-500">Email and SMS sending arrive with messaging in week 4.</p>
       </form>
     </section>
   );

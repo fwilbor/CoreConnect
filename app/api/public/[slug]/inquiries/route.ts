@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { submitPublicInquiry } from "@/lib/intake/public";
 import { clientIp } from "@/lib/intake/spam";
+import { kickQueue } from "@/lib/messaging/kick";
 
 // POST /api/public/:slug/inquiries: the inquiry form's JSON/form endpoint for
 // clients other than the hosted page. Auth: Turnstile token + per-IP rate limit.
@@ -37,6 +38,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     userAgent: request.headers.get("user-agent"),
   });
 
+  if (result.ok) kickQueue();
   if (result.ok) return NextResponse.json({ ok: true, message: result.successMessage }, { status: 201 });
   return NextResponse.json(
     { error: { code: result.reason, message: result.reason.replace("_", " "), fields: result.errors } },

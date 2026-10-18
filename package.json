@@ -9,8 +9,9 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "db:reset": "tsx scripts/db-reset.ts",
-    "db:pull": "drizzle-kit pull && rm -rf lib/db/generated/meta lib/db/generated/*.sql lib/db/generated/relations.ts"
+    "db:reset": "tsx scripts/db-reset.ts ${LOCAL_DATABASE_URL:-postgres://postgres@localhost:5432/coreconnect_dev}",
+    "db:pull": "drizzle-kit pull && rm -rf lib/db/generated/meta lib/db/generated/*.sql lib/db/generated/relations.ts",
+    "jobs:dev": "tsx scripts/jobs-dev.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",

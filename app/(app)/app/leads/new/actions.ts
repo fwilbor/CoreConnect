@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { withUser } from "@/lib/db";
 import { normalizeEmail, normalizePhone, splitName } from "@/lib/intake/normalize";
 import { upsertInquiry, type LeadSource } from "@/lib/intake/upsert";
+import { kickQueue } from "@/lib/messaging/kick";
 import { requireWorkspace } from "@/lib/workspace";
 
 const QUICK_ADD_SOURCES =["facebook", "instagram", "text", "call", "show", "referral", "other"] as const;
@@ -31,5 +32,6 @@ export async function quickAddLead(_prev: QuickAddState, formData: FormData): Pr
       source: source as LeadSource, actorUserId: user.id,
     }),
   );
+  kickQueue();
   redirect(`/app/leads?added=${result.leadCreated ? "new" : "merged"}`);
 }

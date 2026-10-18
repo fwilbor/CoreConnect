@@ -7,6 +7,7 @@ import { upsertInquiry } from "@/lib/intake/upsert";
 import { TEST_DATABASE_URL } from "../global-setup";
 
 process.env.IP_HASH_SECRET = "test-secret";
+process.env.APP_TOKEN_SECRET = "test-token-secret-that-is-long-enough-123";
 
 let db: Database;
 const owner = randomUUID();

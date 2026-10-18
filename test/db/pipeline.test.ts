@@ -67,8 +67,8 @@ describe("stage moves", () => {
 
   it("stops an active sequence when the stage changes", async () => {
     const { leadId } = await newLead("Nurtured", "+13125550203");
-    await db.execute(sql`insert into sequence_enrollments (workspace_id, lead_id, sequence_id)
-                         select ${ws}, ${leadId}, id from sequences where workspace_id = ${ws}`);
+    const [before] = await db.execute(sql`select status from sequence_enrollments where lead_id = ${leadId}`);
+    expect(before.status).toBe("active"); // enrolled automatically when the lead was created
     await as(staff, (tx) => moveLeadToStage(tx, { workspaceId: ws, userId: staff }, leadId, stages["Contacted"]));
     const [row] = await db.execute(sql`select status from sequence_enrollments where lead_id = ${leadId}`);
     expect(row.status).toBe("stopped");

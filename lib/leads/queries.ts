@@ -122,6 +122,22 @@ export type LeadDetail = {
   tasks: TimelineItem[];
   submissions: Submission[];
   members: { id: string; name: string }[];
+  messages: LeadMessage[];
+  templates: { id: string; name: string; channel: "email" | "sms"; subject: string | null; body: string }[];
+};
+
+export type LeadMessage = {
+  id: string;
+  channel: "email" | "sms";
+  direction: "in" | "out";
+  kind: string;
+  subject: string | null;
+  body: string;
+  status: "queued" | "sent" | "delivered" | "failed" | "received";
+  last_error: string | null;
+  send_after: string | null;
+  created_at: string;
+  author_name: string | null;
 };
 
 function formatAnswer(field: FormField | undefined, value: unknown): string {
@@ -145,7 +161,7 @@ export async function getLeadDetail(tx: Tx, workspaceId: string, leadId: string)
     where l.id = ${leadId} and l.workspace_id = ${workspaceId}`)) as unknown as LeadDetail["lead"][];
   if (!lead) return null;
 
-  const [stages, timeline, submissions, members] = await Promise.all([
+  const [stages, timeline, submissions, members, messages, templates] = await Promise.all([
     listStages(tx, workspaceId),
     tx.execute(sql`
       select a.id, a.type, a.payload, coalesce(u.name, u.email) as actor_name, a.due_at, a.done_at, a.created_at
@@ -161,6 +177,14 @@ export async function getLeadDetail(tx: Tx, workspaceId: string, leadId: string)
     tx.execute(sql`
       select u.id, coalesce(u.name, u.email) as name from memberships m join users u on u.id = m.user_id
       where m.workspace_id = ${workspaceId} and m.role in ('owner', 'staff') order by 2`),
+    tx.execute(sql`
+      select m.id, m.channel, m.direction, m.kind, m.subject, m.body, m.status, m.last_error, m.send_after, m.created_at,
+             coalesce(u.name, u.email) as author_name
+      from messages m left join users u on u.id = m.created_by
+      where m.lead_id = ${leadId} and m.workspace_id = ${workspaceId}
+      order by m.created_at desc limit 500`),
+    tx.execute(sql`
+      select id, name, channel, subject, body from templates where workspace_id = ${workspaceId} order by channel, name`),
   ]);
 
   const items = timeline as unknown as TimelineItem[];
@@ -180,5 +204,7 @@ export async function getLeadDetail(tx: Tx, workspaceId: string, leadId: string)
       return { id: s.id, submitted_at: s.submitted_at, form_title: s.form_title, answers: [...known, ...orphans] };
     }),
     members: members as unknown as { id: string; name: string }[],
+    messages: messages as unknown as LeadMessage[],
+    templates: templates as unknown as LeadDetail["templates"],
   };
 }

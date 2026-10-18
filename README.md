@@ -12,10 +12,14 @@ Needs Node 22, pnpm 10 and Postgres 15+ on localhost (Docker is not required).
 ```sh
 pnpm install
 cp .env.example .env.local        # fill in Supabase values; DATABASE_URL can point at local Postgres
-pnpm db:reset                     # rebuilds the local database from supabase/migrations
+pnpm db:reset                     # rebuilds the local database (localhost only) from supabase/migrations
 pnpm test                         # includes the cross-tenant RLS test
 pnpm dev
+pnpm jobs:dev                     # second terminal: runs the 1-minute scheduler tick
 ```
+
+Without `RESEND_API_KEY` or Twilio keys, emails and texts are only logged to the
+dev server console, so local work never messages anyone.
 
 Tests rebuild their own database (`coreconnect_test`, override with
 `TEST_DATABASE_URL`). `supabase/local/supabase-shim.sql` stands in for the
@@ -42,6 +46,14 @@ Server code reaches the database in two ways:
 - `withUser(userId, tx => …)`, for anything done on behalf of a signed-in
   user. Runs as role `authenticated` with the user's claims, so RLS applies.
 - `serviceDb()`, for webhooks, jobs and platform-admin pages only. It bypasses RLS.
+
+## Background jobs
+
+Outbound messages are queued in the `messages` table in the same transaction as
+the event that caused them. `/api/jobs/tick` (every minute via Vercel Cron, see
+`vercel.json`, or `pnpm jobs:dev` locally) runs due Nurture steps and delivers
+queued messages with retries. Requests that queue a message also run a tick
+right after responding, so auto-replies go out in seconds.
 
 ## Connecting Supabase and Vercel
 

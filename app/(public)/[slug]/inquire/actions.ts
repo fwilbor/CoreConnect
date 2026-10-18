@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { clientIp } from "@/lib/intake/spam";
 import { submitPublicInquiry } from "@/lib/intake/public";
+import { kickQueue } from "@/lib/messaging/kick";
 
 export type InquiryState =
   | { status: "idle" }
@@ -37,6 +38,7 @@ export async function submitInquiryAction(
     ip: clientIp(h),
     userAgent: h.get("user-agent"),
   });
+  if (result.ok) kickQueue();
   if (result.ok) return { status: "success", message: result.successMessage };
   return { status: "error", message: MESSAGES[result.reason], errors: result.errors };
 }

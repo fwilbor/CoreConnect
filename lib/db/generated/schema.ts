@@ -136,28 +136,6 @@ export const leads = pgTable("leads", {
 	check("leads_rating_check", sql`(rating >= 1) AND (rating <= 5)`),
 ]);
 
-export const forms = pgTable("forms", {
-	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
-	workspaceId: uuid("workspace_id").notNull(),
-	kind: text().notNull(),
-	title: text().notNull(),
-	fields: jsonb().default([]).notNull(),
-	successMessage: text("success_message"),
-	isActive: boolean("is_active").default(true).notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-}, (table) => [
-	foreignKey({
-			columns: [table.workspaceId],
-			foreignColumns: [workspaces.id],
-			name: "forms_workspace_id_fkey"
-		}).onDelete("cascade"),
-	unique("forms_workspace_id_id_key").on(table.id, table.workspaceId),
-	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
-	check("forms_kind_check", sql`kind = ANY (ARRAY['inquiry'::text, 'application'::text])`),
-	check("forms_fields_check", sql`jsonb_typeof(fields) = 'array'::text`),
-]);
-
 export const formSubmissions = pgTable("form_submissions", {
 	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
 	workspaceId: uuid("workspace_id").notNull(),
@@ -224,27 +202,6 @@ export const waitlistEntries = pgTable("waitlist_entries", {
 	check("waitlist_entries_check", sql`(status = 'active'::text) = ("position" IS NOT NULL)`),
 ]);
 
-export const templates = pgTable("templates", {
-	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
-	workspaceId: uuid("workspace_id").notNull(),
-	channel: text().notNull(),
-	name: text().notNull(),
-	subject: text(),
-	body: text().notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-}, (table) => [
-	foreignKey({
-			columns: [table.workspaceId],
-			foreignColumns: [workspaces.id],
-			name: "templates_workspace_id_fkey"
-		}).onDelete("cascade"),
-	unique("templates_workspace_id_id_key").on(table.id, table.workspaceId),
-	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
-	check("templates_channel_check", sql`channel = ANY (ARRAY['email'::text, 'sms'::text])`),
-	check("templates_check", sql`(channel = 'sms'::text) OR (subject IS NOT NULL)`),
-]);
-
 export const payments = pgTable("payments", {
 	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
 	workspaceId: uuid("workspace_id").notNull(),
@@ -286,47 +243,6 @@ export const payments = pgTable("payments", {
 	check("payments_check", sql`(status <> 'paid'::text) OR (paid_at IS NOT NULL)`),
 ]);
 
-export const messages = pgTable("messages", {
-	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
-	workspaceId: uuid("workspace_id").notNull(),
-	leadId: uuid("lead_id").notNull(),
-	channel: text().notNull(),
-	direction: text().notNull(),
-	templateId: uuid("template_id"),
-	subject: text(),
-	body: text().notNull(),
-	providerId: text("provider_id"),
-	status: text().notNull(),
-	sentAt: timestamp("sent_at", { withTimezone: true, mode: 'string' }),
-	readAt: timestamp("read_at", { withTimezone: true, mode: 'string' }),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-}, (table) => [
-	index("messages_lead_idx").using("btree", table.workspaceId.asc().nullsLast().op("timestamptz_ops"), table.leadId.asc().nullsLast().op("timestamptz_ops"), table.createdAt.asc().nullsLast().op("uuid_ops")),
-	uniqueIndex("messages_provider_uniq").using("btree", table.channel.asc().nullsLast().op("text_ops"), table.providerId.asc().nullsLast().op("text_ops")).where(sql`(provider_id IS NOT NULL)`),
-	index("messages_unread_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops")).where(sql`((direction = 'in'::text) AND (read_at IS NULL))`),
-	foreignKey({
-			columns: [table.workspaceId],
-			foreignColumns: [workspaces.id],
-			name: "messages_workspace_id_fkey"
-		}).onDelete("cascade"),
-	foreignKey({
-			columns: [table.workspaceId, table.leadId],
-			foreignColumns: [leads.id, leads.workspaceId],
-			name: "messages_workspace_id_lead_id_fkey"
-		}).onDelete("cascade"),
-	foreignKey({
-			columns: [table.workspaceId, table.templateId],
-			foreignColumns: [templates.id, templates.workspaceId],
-			name: "messages_workspace_id_template_id_fkey"
-		}).onDelete("set null"),
-	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
-	check("messages_channel_check", sql`channel = ANY (ARRAY['email'::text, 'sms'::text])`),
-	check("messages_direction_check", sql`direction = ANY (ARRAY['out'::text, 'in'::text])`),
-	check("messages_status_check", sql`status = ANY (ARRAY['queued'::text, 'sent'::text, 'delivered'::text, 'failed'::text, 'received'::text])`),
-	check("messages_check", sql`(direction = 'in'::text) OR (read_at IS NULL)`),
-]);
-
 export const activities = pgTable("activities", {
 	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
 	workspaceId: uuid("workspace_id").notNull(),
@@ -359,23 +275,6 @@ export const activities = pgTable("activities", {
 	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
 	check("activities_type_check", sql`type = ANY (ARRAY['note'::text, 'stage_change'::text, 'task'::text, 'call_logged'::text, 'form'::text, 'payment'::text, 'system'::text])`),
 	check("activities_check", sql`(type = 'task'::text) OR (due_at IS NULL)`),
-]);
-
-export const sequences = pgTable("sequences", {
-	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
-	workspaceId: uuid("workspace_id").notNull(),
-	name: text().notNull(),
-	isActive: boolean("is_active").default(true).notNull(),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-}, (table) => [
-	foreignKey({
-			columns: [table.workspaceId],
-			foreignColumns: [workspaces.id],
-			name: "sequences_workspace_id_fkey"
-		}).onDelete("cascade"),
-	unique("sequences_workspace_id_id_key").on(table.id, table.workspaceId),
-	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
 ]);
 
 export const sequenceSteps = pgTable("sequence_steps", {
@@ -429,14 +328,14 @@ export const sequenceEnrollments = pgTable("sequence_enrollments", {
 			name: "sequence_enrollments_workspace_id_lead_id_fkey"
 		}).onDelete("cascade"),
 	foreignKey({
-			columns: [table.workspaceId, table.sequenceId],
-			foreignColumns: [sequences.id, sequences.workspaceId],
-			name: "sequence_enrollments_workspace_id_sequence_id_fkey"
-		}).onDelete("cascade"),
-	foreignKey({
 			columns: [table.workspaceId],
 			foreignColumns: [workspaces.id],
 			name: "sequence_enrollments_workspace_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.workspaceId, table.sequenceId],
+			foreignColumns: [sequences.id, sequences.workspaceId],
+			name: "sequence_enrollments_workspace_id_sequence_id_fkey"
 		}).onDelete("cascade"),
 	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
 	check("sequence_enrollments_status_check", sql`status = ANY (ARRAY['active'::text, 'completed'::text, 'stopped'::text])`),
@@ -554,7 +453,7 @@ export const waitlistEvents = pgTable("waitlist_events", {
 		}).onDelete("cascade"),
 	pgPolicy("member_read", { as: "permissive", for: "select", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))` }),
 	pgPolicy("member_append", { as: "permissive", for: "insert", to: ["authenticated"] }),
-	check("waitlist_events_check", sql`(from_position IS NULL) OR (to_position IS NULL) OR (length(TRIM(BOTH FROM reason)) > 0)`),
+	check("waitlist_events_check", sql`(from_position IS NULL) OR (to_position IS NULL) OR (COALESCE(length(TRIM(BOTH FROM reason)), 0) > 0)`),
 ]);
 
 export const auditLog = pgTable("audit_log", {
@@ -589,4 +488,132 @@ export const webhookEvents = pgTable("webhook_events", {
 }, (table) => [
 	unique("webhook_events_provider_event_id_key").on(table.provider, table.eventId),
 	check("webhook_events_provider_check", sql`provider = ANY (ARRAY['stripe'::text, 'twilio'::text, 'email'::text])`),
+]);
+
+export const forms = pgTable("forms", {
+	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
+	workspaceId: uuid("workspace_id").notNull(),
+	kind: text().notNull(),
+	title: text().notNull(),
+	fields: jsonb().default([]).notNull(),
+	successMessage: text("success_message"),
+	isActive: boolean("is_active").default(true).notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	foreignKey({
+			columns: [table.workspaceId],
+			foreignColumns: [workspaces.id],
+			name: "forms_workspace_id_fkey"
+		}).onDelete("cascade"),
+	unique("forms_workspace_id_id_key").on(table.id, table.workspaceId),
+	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
+	check("forms_kind_check", sql`kind = ANY (ARRAY['inquiry'::text, 'application'::text])`),
+	check("forms_fields_check", sql`jsonb_typeof(fields) = 'array'::text`),
+	check("forms_fields_max_15", sql`jsonb_array_length(fields) <= 15`),
+]);
+
+export const messages = pgTable("messages", {
+	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
+	workspaceId: uuid("workspace_id").notNull(),
+	leadId: uuid("lead_id").notNull(),
+	channel: text().notNull(),
+	direction: text().notNull(),
+	templateId: uuid("template_id"),
+	subject: text(),
+	body: text().notNull(),
+	providerId: text("provider_id"),
+	status: text().notNull(),
+	sentAt: timestamp("sent_at", { withTimezone: true, mode: 'string' }),
+	readAt: timestamp("read_at", { withTimezone: true, mode: 'string' }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	kind: text().default('one_off').notNull(),
+	toAddress: text("to_address"),
+	sendAfter: timestamp("send_after", { withTimezone: true, mode: 'string' }),
+	attempts: integer().default(0).notNull(),
+	lastError: text("last_error"),
+	sequenceStepId: uuid("sequence_step_id"),
+	createdBy: uuid("created_by"),
+}, (table) => [
+	index("messages_failed_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops"), table.createdAt.asc().nullsLast().op("timestamptz_ops")).where(sql`(status = 'failed'::text)`),
+	index("messages_lead_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops"), table.leadId.asc().nullsLast().op("uuid_ops"), table.createdAt.asc().nullsLast().op("uuid_ops")),
+	uniqueIndex("messages_provider_uniq").using("btree", table.channel.asc().nullsLast().op("text_ops"), table.providerId.asc().nullsLast().op("text_ops")).where(sql`(provider_id IS NOT NULL)`),
+	index("messages_queue_idx").using("btree", sql`COALESCE(send_after, created_at)`).where(sql`(status = 'queued'::text)`),
+	index("messages_unread_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops")).where(sql`((direction = 'in'::text) AND (read_at IS NULL))`),
+	foreignKey({
+			columns: [table.workspaceId],
+			foreignColumns: [workspaces.id],
+			name: "messages_workspace_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.workspaceId, table.leadId],
+			foreignColumns: [leads.id, leads.workspaceId],
+			name: "messages_workspace_id_lead_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.workspaceId, table.templateId],
+			foreignColumns: [templates.id, templates.workspaceId],
+			name: "messages_workspace_id_template_id_fkey"
+		}).onDelete("set null"),
+	foreignKey({
+			columns: [table.sequenceStepId],
+			foreignColumns: [sequenceSteps.id],
+			name: "messages_sequence_step_id_fkey"
+		}).onDelete("set null"),
+	foreignKey({
+			columns: [table.createdBy],
+			foreignColumns: [users.id],
+			name: "messages_created_by_fkey"
+		}).onDelete("set null"),
+	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
+	check("messages_channel_check", sql`channel = ANY (ARRAY['email'::text, 'sms'::text])`),
+	check("messages_direction_check", sql`direction = ANY (ARRAY['out'::text, 'in'::text])`),
+	check("messages_status_check", sql`status = ANY (ARRAY['queued'::text, 'sent'::text, 'delivered'::text, 'failed'::text, 'received'::text])`),
+	check("messages_check", sql`(direction = 'in'::text) OR (read_at IS NULL)`),
+	check("messages_kind_check", sql`kind = ANY (ARRAY['one_off'::text, 'auto_reply'::text, 'sequence'::text, 'reminder'::text, 'system'::text])`),
+]);
+
+export const templates = pgTable("templates", {
+	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
+	workspaceId: uuid("workspace_id").notNull(),
+	channel: text().notNull(),
+	name: text().notNull(),
+	subject: text(),
+	body: text().notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	systemKey: text("system_key"),
+}, (table) => [
+	uniqueIndex("templates_system_key_uniq").using("btree", table.workspaceId.asc().nullsLast().op("text_ops"), table.systemKey.asc().nullsLast().op("text_ops")).where(sql`(system_key IS NOT NULL)`),
+	foreignKey({
+			columns: [table.workspaceId],
+			foreignColumns: [workspaces.id],
+			name: "templates_workspace_id_fkey"
+		}).onDelete("cascade"),
+	unique("templates_workspace_id_id_key").on(table.id, table.workspaceId),
+	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
+	check("templates_channel_check", sql`channel = ANY (ARRAY['email'::text, 'sms'::text])`),
+	check("templates_check", sql`(channel = 'sms'::text) OR (subject IS NOT NULL)`),
+	check("templates_system_key_check", sql`system_key = ANY (ARRAY['auto_reply_email'::text, 'auto_reply_sms'::text, 'decline'::text, 'nurture_1'::text, 'nurture_2'::text, 'nurture_3'::text])`),
+]);
+
+export const sequences = pgTable("sequences", {
+	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
+	workspaceId: uuid("workspace_id").notNull(),
+	name: text().notNull(),
+	isActive: boolean("is_active").default(true).notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	systemKey: text("system_key"),
+}, (table) => [
+	uniqueIndex("sequences_system_key_uniq").using("btree", table.workspaceId.asc().nullsLast().op("text_ops"), table.systemKey.asc().nullsLast().op("text_ops")).where(sql`(system_key IS NOT NULL)`),
+	foreignKey({
+			columns: [table.workspaceId],
+			foreignColumns: [workspaces.id],
+			name: "sequences_workspace_id_fkey"
+		}).onDelete("cascade"),
+	unique("sequences_workspace_id_id_key").on(table.id, table.workspaceId),
+	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
+	check("sequences_system_key_check", sql`system_key = 'nurture'::text`),
 ]);

@@ -1,6 +1,7 @@
 import "server-only";
 import { sql } from "drizzle-orm";
 import type { Tx } from "@/lib/db";
+import { onLeadCreated } from "@/lib/messaging/automations";
 import type { Answers } from "./fields";
 
 export const LEAD_SOURCES = [
@@ -151,6 +152,8 @@ export async function upsertInquiry(tx: Tx, input: IntakeInput): Promise<IntakeR
       values (${workspaceId}, ${leadId}, 'note', ${JSON.stringify({ text: input.note.trim() })}::jsonb,
               ${input.actorUserId ?? null})`);
   }
+
+  if (!openLead) await onLeadCreated(tx, { workspaceId, leadId, source: input.source });
 
   return { contactId, leadId, contactCreated: !existing, leadCreated: !openLead, mergeConflict };
 }

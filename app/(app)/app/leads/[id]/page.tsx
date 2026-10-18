@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { withUser } from "@/lib/db";
-import { getLeadDetail, type TimelineItem } from "@/lib/leads/queries";
+import { getLeadDetail, type LeadMessage, type TimelineItem } from "@/lib/leads/queries";
 import { requireWorkspace } from "@/lib/workspace";
 import { leadName } from "../lead-flags";
 import { ContactCard, Composer, LeadControls, MergeReviewBanner, TaskList } from "./lead-panels";
@@ -13,7 +14,13 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
   const { user, workspace } = await requireWorkspace();
-  const detail = await withUser(user.id, (tx) => getLeadDetail(tx, workspace.id, id));
+  const detail = await withUser(user.id, async (tx) => {
+    // Opening the lead counts as reading its replies (Inbox shows unread ones).
+    await tx.execute(sql`
+      update messages set read_at = now()
+      where lead_id = ${id} and workspace_id = ${workspace.id} and direction = 'in' and read_at is null`);
+    return getLeadDetail(tx, workspace.id, id);
+  });
   if (!detail) notFound();
   const { lead } = detail;
 
@@ -75,20 +82,24 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
         </aside>
 
         <div className="min-w-0 space-y-6">
-          <Composer leadId={lead.id} />
+          <Composer leadId={lead.id} templates={detail.templates} />
           <TaskList leadId={lead.id} tasks={detail.tasks} />
           <section>
             <h2 className="text-sm font-semibold">Timeline</h2>
             <ol className="mt-2 space-y-3">
-              {detail.timeline.map((item) => (
-                <li key={item.id} className="border-l-2 border-neutral-200 pl-3 text-sm dark:border-neutral-800">
-                  <p>{describe(item)}</p>
-                  {"text" in item.payload && item.payload.text ? (
-                    <p className="mt-1 whitespace-pre-wrap text-neutral-700 dark:text-neutral-300">{String(item.payload.text)}</p>
-                  ) : null}
-                  <p className="mt-0.5 text-xs text-neutral-500">{item.actor_name ? `${item.actor_name} · ` : ""}{fmt(item.created_at, true)}</p>
-                </li>
-              ))}
+              {merge(detail.timeline, detail.messages).map((entry) =>
+                entry.kind === "message" ? (
+                  <MessageEntry key={entry.item.id} m={entry.item} />
+                ) : (
+                  <li key={entry.item.id} className="border-l-2 border-neutral-200 pl-3 text-sm dark:border-neutral-800">
+                    <p>{describe(entry.item)}</p>
+                    {"text" in entry.item.payload && entry.item.payload.text ? (
+                      <p className="mt-1 whitespace-pre-wrap text-neutral-700 dark:text-neutral-300">{String(entry.item.payload.text)}</p>
+                    ) : null}
+                    <p className="mt-0.5 text-xs text-neutral-500">{entry.item.actor_name ? `${entry.item.actor_name} · ` : ""}{fmt(entry.item.created_at, true)}</p>
+                  </li>
+                ),
+              )}
             </ol>
           </section>
         </div>
@@ -117,6 +128,38 @@ function describe(item: TimelineItem): string {
     case "system":
       if (p.event === "lead_created") return p.source === "import" ? "Imported from CSV" : `Lead added (${p.source})`;
       if (p.event === "inquiry_merged") return "Added again; merged into this lead";
+      if (p.event === "sms_opt_out") return `Opted out of texts (replied ${p.keyword})`;
+      if (p.event === "sms_opt_in") return `Opted back in to texts (replied ${p.keyword})`;
+      if (p.event === "email_unsubscribed") return p.reason === "complaint" ? "Marked an email as spam; unsubscribed" : "Unsubscribed from email";
       return "Update";
   }
+}
+
+type Entry = { kind: "activity"; item: TimelineItem; at: string } | { kind: "message"; item: LeadMessage; at: string };
+
+function merge(activities: TimelineItem[], messages: LeadMessage[]): Entry[] {
+  return [
+    ...activities.map((item) => ({ kind: "activity" as const, item, at: item.created_at })),
+    ...messages.map((item) => ({ kind: "message" as const, item, at: item.created_at })),
+  ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+}
+
+const KIND_LABEL: Record<string, string> = { auto_reply: "Auto-reply", sequence: "Nurture", reminder: "Reminder", system: "System" };
+
+function MessageEntry({ m }: { m: LeadMessage }) {
+  const inbound = m.direction === "in";
+  const label = `${inbound ? "Received" : "Sent"} ${m.channel === "email" ? "email" : "text"}${KIND_LABEL[m.kind] && !inbound ? ` · ${KIND_LABEL[m.kind]}` : ""}`;
+  const status =
+    m.status === "failed" ? `Failed: ${m.last_error ?? "unknown error"}`
+    : m.status === "queued" ? (m.send_after && new Date(m.send_after) > new Date() ? `Scheduled for ${fmt(m.send_after, true)}` : "Sending")
+    : m.status === "delivered" ? "Delivered" : m.status === "sent" ? "Sent" : "";
+  return (
+    <li className={`border-l-2 pl-3 text-sm ${inbound ? "border-blue-400" : m.status === "failed" ? "border-red-500" : "border-neutral-400 dark:border-neutral-600"}`}>
+      <p className="font-medium">{label}{m.subject ? `: ${m.subject}` : ""}</p>
+      <p className="mt-1 whitespace-pre-wrap text-neutral-700 dark:text-neutral-300">{m.body}</p>
+      <p className={`mt-0.5 text-xs ${m.status === "failed" ? "text-red-600" : "text-neutral-500"}`}>
+        {m.author_name ? `${m.author_name} · ` : ""}{fmt(m.created_at, true)}{status && !inbound ? ` · ${status}` : ""}
+      </p>
+    </li>
+  );
 }
