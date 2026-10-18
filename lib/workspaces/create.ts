@@ -4,6 +4,12 @@ import { z } from "zod";
 import type { Database } from "@/lib/db";
 import { users, workspaces } from "@/lib/db/schema";
 
+// Public forms live at /{slug}/inquire, so a slug can't shadow an app route.
+export const RESERVED_SLUGS = new Set([
+  "app", "admin", "api", "auth", "login", "logout", "embed", "static", "public", "settings",
+  "_next", "favicon", "robots", "sitemap", "help", "support", "www", "coreconnect", "corestore",
+]);
+
 export const CreateWorkspaceInput = z.object({
   name: z.string().trim().min(1).max(120),
   slug: z
@@ -12,7 +18,8 @@ export const CreateWorkspaceInput = z.object({
     .toLowerCase()
     .min(3)
     .max(40)
-    .regex(/^[a-z0-9](-?[a-z0-9])*$/, "Use lowercase letters, numbers and single hyphens"),
+    .regex(/^[a-z0-9](-?[a-z0-9])*$/, "Use lowercase letters, numbers and single hyphens")
+    .refine((slug) => !RESERVED_SLUGS.has(slug), "That slug is reserved"),
   businessType: z.enum(["breeder", "service"]),
   timezone: z.string().refine((tz) => Intl.supportedValuesOf("timeZone").includes(tz), "Unknown time zone"),
   ownerEmail: z.email().trim().toLowerCase(),

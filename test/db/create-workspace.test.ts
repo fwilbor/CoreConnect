@@ -73,6 +73,7 @@ describe("createWorkspace", () => {
   it("validates slugs and time zones", () => {
     expect(() => input({ slug: "Bad Slug" })).toThrow();
     expect(() => input({ slug: "a--b" })).toThrow();
+    expect(() => input({ slug: "admin" })).toThrow();
     expect(() => input({ timezone: "Mars/Olympus" })).toThrow();
   });
 });
