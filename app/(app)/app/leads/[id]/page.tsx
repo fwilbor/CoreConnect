@@ -75,7 +75,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
             members={detail.members}
           />
           <WaitlistPanel leadId={lead.id} closed={lead.closed_at !== null} litters={detail.litters} entry={detail.entry} />
-          <PaymentsPanel leadId={lead.id} payments={detail.payments} />
+          <PaymentsPanel leadId={lead.id} payments={detail.payments} depositsReady={detail.extra.deposits_ready} closed={lead.closed_at !== null} />
           <ContactCard
             leadId={lead.id}
             contactId={lead.contact_id}

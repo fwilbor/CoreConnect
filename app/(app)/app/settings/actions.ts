@@ -2,6 +2,8 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { connectOnboardingUrl } from "@/lib/deposits";
 import { z } from "zod";
 import { withUser } from "@/lib/db";
 import { workspaces } from "@/lib/db/schema";
@@ -50,4 +52,11 @@ export async function saveBusinessSettings(_prev: BusinessState, formData: FormD
   if (error) return { error };
   revalidatePath("/app", "layout");
   return { ok: true };
+}
+
+// Starts (or resumes) Stripe Connect onboarding for this workspace.
+export async function connectStripeAction() {
+  const { user, workspace } = await requireOwner();
+  const url = await connectOnboardingUrl({ workspaceId: workspace.id, ownerEmail: user.email, businessName: workspace.name });
+  redirect(url);
 }

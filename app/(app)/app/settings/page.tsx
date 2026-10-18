@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { withUser } from "@/lib/db";
 import { workspaces } from "@/lib/db/schema";
 import { requireOwner } from "@/lib/workspace";
+import { connectStripeAction } from "./actions";
 import { BusinessForm } from "./business-form";
 
 export const metadata = { title: "Settings · CoreConnect" };
@@ -14,7 +15,8 @@ const LINKS = [
   ["/app/settings/sequences", "Sequences", "Nurture follow-ups"],
 ] as const;
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ stripe?: string }> }) {
+  const { stripe } = await searchParams;
   const { user, workspace } = await requireOwner();
   const [ws] = await withUser(user.id, (tx) =>
     tx
@@ -22,6 +24,7 @@ export default async function SettingsPage() {
         name: workspaces.name, physicalAddress: workspaces.physicalAddress, brandColor: workspaces.brandColor,
         logoUrl: workspaces.logoUrl, smsEnabled: workspaces.smsEnabled, smsNumber: workspaces.smsNumberE164,
         depositAmountCents: workspaces.depositAmountCents, depositTerms: workspaces.depositTerms,
+        stripeAccountId: workspaces.stripeAccountId, stripeChargesEnabled: workspaces.stripeChargesEnabled,
       })
       .from(workspaces)
       .where(eq(workspaces.id, workspace.id)),
@@ -38,6 +41,29 @@ export default async function SettingsPage() {
           </Link>
         ))}
       </nav>
+      <h2 className="mt-8 text-lg font-semibold">Online deposits (Stripe)</h2>
+      <div className="mt-2 rounded-md border border-neutral-200 p-3 text-sm dark:border-neutral-800">
+        {ws.stripeChargesEnabled ? (
+          <p>Connected. Deposits go straight to your Stripe account{ws.stripeAccountId ? ` (${ws.stripeAccountId})` : ""}.</p>
+        ) : (
+          <>
+            <p className="text-neutral-600 dark:text-neutral-300">
+              {ws.stripeAccountId
+                ? "Stripe setup isn't finished yet. Stripe needs a few more details before you can take deposits."
+                : "Connect your Stripe account to take deposits online. Money goes directly to you; CoreConnect never holds it."}
+            </p>
+            <form action={connectStripeAction} className="mt-2">
+              <button className="rounded-md bg-neutral-900 px-3 py-2 text-white dark:bg-white dark:text-neutral-900">
+                {ws.stripeAccountId ? "Finish Stripe setup" : "Connect Stripe"}
+              </button>
+            </form>
+          </>
+        )}
+        {stripe === "connected" && <p className="mt-2 text-green-700 dark:text-green-400">Stripe is connected.</p>}
+        {stripe === "pending" && <p className="mt-2 text-amber-700 dark:text-amber-400">Stripe still needs more information before deposits can start.</p>}
+        {(!ws.depositAmountCents) && <p className="mt-2 text-neutral-500">Set your deposit amount below as well.</p>}
+      </div>
+
       <h2 className="mt-8 text-lg font-semibold">Business</h2>
       {!ws.physicalAddress && (
         <p className="mt-2 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">

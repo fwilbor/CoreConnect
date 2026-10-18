@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import type { PaymentRow } from "@/lib/payments";
 import {
   addToWaitlistAction, approveAction, declineAction, recordPaymentAction, removeFromWaitlistAction,
-  sendApplicationLinkAction, type QualifyResult,
+  sendApplicationLinkAction, sendDepositLinkAction, type QualifyResult,
 } from "./qualify-actions";
 
 const input = "w-full rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 text-sm dark:border-neutral-700";
@@ -146,7 +146,7 @@ export function WaitlistPanel(props: {
 
 const money = (cents: number) => (cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
 
-export function PaymentsPanel({ leadId, payments }: { leadId: string; payments: PaymentRow[] }) {
+export function PaymentsPanel({ leadId, payments, depositsReady, closed }: { leadId: string; payments: PaymentRow[]; depositsReady: boolean; closed: boolean }) {
   const { pending, run, messages } = useRun();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ kind: "deposit", method: "zelle", amount: "", paidOn: new Date().toLocaleDateString("en-CA"), note: "" });
@@ -166,6 +166,11 @@ export function PaymentsPanel({ leadId, payments }: { leadId: string; payments: 
         ))}
         {payments.length === 0 && <li className="text-neutral-500">No payments yet.</li>}
       </ul>
+      {depositsReady && !closed && !payments.some((p) => p.kind === "deposit" && p.status === "paid") && (
+        <button type="button" disabled={pending} onClick={() => run(() => sendDepositLinkAction(leadId))} className={`${outline} mt-2`}>
+          Send deposit link
+        </button>
+      )}
       {open && (
         <form className="mt-3 space-y-2 rounded-md bg-neutral-50 p-3 dark:bg-neutral-900" onSubmit={(e) => {
           e.preventDefault();

@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { withUser, type Tx } from "@/lib/db";
+import { sql } from "drizzle-orm";
 import { approveApplication, declineApplication, sendApplicationLink, type ApproveInput } from "@/lib/applications";
+import { enroll } from "@/lib/messaging/automations";
+import { queueMessage } from "@/lib/messaging/send";
 import { LeadError, type Ctx } from "@/lib/leads/mutations";
 import { kickQueue } from "@/lib/messaging/kick";
 import { recordManualPayment, type ManualPaymentInput } from "@/lib/payments";
@@ -56,4 +59,18 @@ export async function removeFromWaitlistAction(leadId: string, entryId: string, 
 
 export async function recordPaymentAction(input: ManualPaymentInput) {
   return run(input.leadId, async (tx, ctx) => { await recordManualPayment(tx, ctx, input); });
+}
+
+// Emails the deposit link and starts the deposit reminders (3 and 7 days).
+export async function sendDepositLinkAction(leadId: string) {
+  return run(leadId, async (tx, ctx) => {
+    const [tpl] = await tx.execute(sql`select id from templates where workspace_id = ${ctx.workspaceId} and system_key = 'deposit_link'`);
+    if (!tpl) throw new LeadError("The deposit link template is missing");
+    const r = await queueMessage(tx, {
+      workspaceId: ctx.workspaceId, leadId, channel: "email", kind: "one_off", templateId: (tpl as { id: string }).id, createdBy: ctx.userId,
+    });
+    if (!r.queued) throw new LeadError(r.reason);
+    await enroll(tx, { workspaceId: ctx.workspaceId, leadId, sequence: "deposit_reminder" });
+    return "Deposit link sent.";
+  }, true);
 }
