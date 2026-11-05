@@ -73,6 +73,20 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </p>
       )}
       <BusinessForm initial={ws} timezones={Intl.supportedValuesOf("timeZone").filter((tz) => tz.startsWith("America/") || tz.startsWith("Pacific/") || tz === ws.timezone)} />
+      <h2 className="mt-8 text-lg font-semibold">Your data</h2>
+      <div className="mt-2 rounded-md border border-neutral-200 p-3 text-sm dark:border-neutral-800">
+        <p className="text-neutral-600 dark:text-neutral-300">
+          Download everything in this workspace (contacts, leads, messages, notes, payments, waitlists and settings) as
+          CSV files in a zip. Each export is recorded in the audit log.
+        </p>
+        <form action="/app/settings/export" method="post" className="mt-2">
+          <button className="rounded-md border border-neutral-300 px-3 py-2 dark:border-neutral-700">Export all data</button>
+        </form>
+        <p className="mt-3 text-neutral-500">
+          To delete one person&apos;s data on request, open their lead and use <span className="font-medium">Delete contact</span> at the bottom.
+        </p>
+      </div>
+
     </main>
   );
 }

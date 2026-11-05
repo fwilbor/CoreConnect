@@ -8,6 +8,7 @@ import { requireWorkspace } from "@/lib/workspace";
 import { leadName } from "../lead-flags";
 import { listPayments } from "@/lib/payments";
 import { ContactCard, Composer, LeadControls, MergeReviewBanner, TaskList } from "./lead-panels";
+import { DeleteContact } from "./delete-contact";
 import { ApplicationPanel, PaymentsPanel, WaitlistPanel } from "./qualify-panels";
 
 export const metadata = { title: "Lead · CoreConnect" };
@@ -132,6 +133,11 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               )}
             </ol>
           </section>
+          {workspace.role !== "staff" && (
+            <section className="border-t border-neutral-200 pt-4 dark:border-neutral-800">
+              <DeleteContact contactId={lead.contact_id} name={leadName(lead)} />
+            </section>
+          )}
         </div>
       </div>
     </main>

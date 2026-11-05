@@ -9,7 +9,7 @@ export const metadata = { title: "Leads · CoreConnect" };
 
 type Search = {
   view?: string; q?: string; stage?: string; source?: string; litter?: string; tag?: string;
-  contacted?: string; closed?: string; sort?: string; added?: string; review?: string;
+  contacted?: string; closed?: string; sort?: string; added?: string; review?: string; deleted?: string;
 };
 
 const select = "rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 text-sm dark:border-neutral-700";
@@ -33,7 +33,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
   }));
   const stageName = new Map(stages.map((s) => [s.id, s.name]));
   const keep = (extra: Record<string, string>) => {
-    const params = new URLSearchParams(Object.entries(sp).filter(([k, v]) => v && k !== "added") as [string, string][]);
+    const params = new URLSearchParams(Object.entries(sp).filter(([k, v]) => v && k !== "added" && k !== "deleted") as [string, string][]);
     for (const [k, v] of Object.entries(extra)) params.set(k, v);
     return `/app/leads?${params}`;
   };
@@ -49,6 +49,7 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
         </div>
         <Link href="/app/leads/new" className="ml-auto rounded-md bg-neutral-900 px-3 py-2 text-sm text-white dark:bg-white dark:text-neutral-900">Quick add</Link>
       </div>
+      {sp.deleted && <p className="mt-3 rounded-md bg-green-50 p-3 text-sm text-green-900 dark:bg-green-950 dark:text-green-100">Contact deleted.</p>}
       {sp.added && <p className="mt-3 text-sm text-green-700 dark:text-green-400">Lead {sp.added === "merged" ? "merged into an existing contact" : "added"}.</p>}
 
       <form method="get" className="mt-4 flex flex-wrap items-end gap-2">

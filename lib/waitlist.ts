@@ -106,6 +106,23 @@ export async function removeEntry(tx: Tx, ctx: Ctx, entryId: string, outcome: "m
   else await tx.execute(sql`update leads set litter_id = null where id = ${leadId} and litter_id = ${litterId}`);
 }
 
+// Takes a contact's entry off the list before the contact is deleted. Everyone
+// behind moves up, and their history says why without naming the person (the
+// entry's own history goes with it in the delete).
+export async function vacateForDeletion(tx: Tx, ctx: Ctx, entryId: string) {
+  const [row] = await tx.execute(sql`select litter_id from waitlist_entries where id = ${entryId} and workspace_id = ${ctx.workspaceId}`);
+  if (!row) return;
+  const entries = await lockLitter(tx, ctx, (row as { litter_id: string }).litter_id);
+  const leaving = entries.find((e) => e.id === entryId);
+  if (!leaving) return;
+  await tx.execute(sql`set constraints all deferred`);
+  await tx.execute(sql`update waitlist_entries set status = 'released', position = null where id = ${entryId}`);
+  for (const e of entries.filter((x) => x.position > leaving.position)) {
+    await tx.execute(sql`update waitlist_entries set position = ${e.position - 1} where id = ${e.id}`);
+    await logEvent(tx, ctx, e.id, e.position, e.position - 1, `Moved up: the contact at #${leaving.position} was deleted on request`);
+  }
+}
+
 // Moves an active entry to another litter's list (end of the line there).
 export async function transferEntry(tx: Tx, ctx: Ctx, entryId: string, toLitterId: string, reason: string) {
   const [row] = await tx.execute(sql`
