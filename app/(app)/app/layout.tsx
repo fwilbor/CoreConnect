@@ -1,19 +1,25 @@
-import Link from "next/link";
 import { signOut } from "@/app/(auth)/login/actions";
 import { requireUser } from "@/lib/auth";
 import { getWorkspaceContext } from "@/lib/workspace";
 import { switchWorkspace } from "./actions";
+import { NavLinks, type NavItem } from "./nav-links";
 
-const NAV = [
-  { href: "/app", label: "Today" },
-  { href: "/app/dashboard", label: "Dashboard" },
-  { href: "/app/leads", label: "Leads" },
-  { href: "/app/inbox", label: "Inbox" },
-  { href: "/app/litters", label: "Litters" },
-  { href: "/app/leads/new", label: "Quick add" },
-  { href: "/app/import", label: "Import" },
-  { href: "/app/settings", label: "Settings" },
-];
+// Staff can't open Settings (owner-only), so they get their one personal
+// setting instead of a link that bounces them back to Today.
+function navFor(role: string, service: boolean): NavItem[] {
+  return [
+    { href: "/app", label: "Today" },
+    { href: "/app/dashboard", label: "Dashboard" },
+    { href: "/app/leads", label: "Leads" },
+    { href: "/app/inbox", label: "Inbox" },
+    { href: "/app/litters", label: service ? "Slots" : "Litters" },
+    { href: "/app/leads/new", label: "Quick add" },
+    { href: "/app/import", label: "Import" },
+    role === "staff"
+      ? { href: "/app/settings/notifications", label: "Notifications" }
+      : { href: "/app/settings", label: "Settings" },
+  ];
+}
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getWorkspaceContext(await requireUser());
@@ -38,13 +44,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <span className="font-semibold">{ctx?.workspace.name ?? "CoreConnect"}</span>
           )}
           {ctx && (
-            <nav className="flex flex-wrap gap-3 text-sm">
-              {NAV.map((n) => (
-                <Link key={n.href} href={n.href} className="text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white">
-                  {n.label}
-                </Link>
-              ))}
-            </nav>
+            <NavLinks items={navFor(ctx.workspace.role, ctx.workspace.businessType === "service")} />
           )}
           <form action={signOut} className="ml-auto">
             <button className="text-sm text-neutral-500 underline">Sign out</button>
