@@ -5,8 +5,10 @@ import { saveBusinessSettings, type BusinessState } from "./actions";
 
 const input = "mt-1 w-full rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 text-sm dark:border-neutral-700";
 
-export function BusinessForm({ initial }: {
+export function BusinessForm({ initial, timezones }: {
+  timezones: string[];
   initial: {
+    digestTime: string; timezone: string;
     name: string; physicalAddress: string | null; brandColor: string | null; logoUrl: string | null; smsEnabled: boolean;
     smsNumber: string | null; depositAmountCents: number | null; depositTerms: string | null;
   };
@@ -56,6 +58,22 @@ export function BusinessForm({ initial }: {
         <label className="mt-2 flex items-center gap-2">
           <input type="checkbox" name="smsEnabled" defaultChecked={initial.smsEnabled} disabled={!initial.smsNumber} />
           Send texts to people who agreed to them
+        </label>
+      </fieldset>
+      <fieldset className="grid gap-3 rounded-md border border-neutral-200 p-3 text-sm sm:grid-cols-2 dark:border-neutral-800">
+        <legend className="px-1 font-medium">Morning digest</legend>
+        <p className="text-neutral-500 sm:col-span-2">
+          Each morning the owner gets an email with new leads, leads going cold, tasks due, payments and go-home dates.
+        </p>
+        <label className="block">
+          Send at
+          <input name="digestTime" type="time" required defaultValue={initial.digestTime.slice(0, 5)} className={input} />
+        </label>
+        <label className="block">
+          Time zone
+          <select name="timezone" defaultValue={initial.timezone} className={input}>
+            {timezones.map((tz) => <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>)}
+          </select>
         </label>
       </fieldset>
       {state.error && <p className="text-sm text-red-600" role="alert">{state.error}</p>}

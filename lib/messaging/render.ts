@@ -18,7 +18,7 @@ export function unknownMergeFields(text: string): string[] {
   return [...new Set(found.filter((f) => !(MERGE_FIELDS as readonly string[]).includes(f)))];
 }
 
-const escapeHtml = (s: string) =>
+export const escapeHtml = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 const linkify = (escaped: string) =>

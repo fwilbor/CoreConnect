@@ -17,6 +17,8 @@ const BusinessInput = z.object({
   smsEnabled: z.boolean(),
   depositAmount: z.union([z.literal(""), z.string().regex(/^\$?\d{1,6}(\.\d{1,2})?$/, "Enter a deposit like 300 or 300.00")]),
   depositTerms: z.string().trim().max(4000),
+  digestTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Pick a digest time"),
+  timezone: z.string().refine((tz) => Intl.supportedValuesOf("timeZone").includes(tz), "Pick a time zone"),
 });
 
 export type BusinessState = { ok?: boolean; error?: string };
@@ -31,6 +33,8 @@ export async function saveBusinessSettings(_prev: BusinessState, formData: FormD
     smsEnabled: formData.get("smsEnabled") === "on",
     depositAmount: String(formData.get("depositAmount") ?? "").trim(),
     depositTerms: formData.get("depositTerms") ?? "",
+    digestTime: formData.get("digestTime") ?? "",
+    timezone: formData.get("timezone") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form" };
   const d = parsed.data;
@@ -45,6 +49,7 @@ export async function saveBusinessSettings(_prev: BusinessState, formData: FormD
         logoUrl: d.logoUrl || null, smsEnabled: d.smsEnabled,
         depositAmountCents: d.depositAmount ? Math.round(Number(d.depositAmount.replace("$", "")) * 100) : null,
         depositTerms: d.depositTerms || null,
+        digestTime: d.digestTime, timezone: d.timezone,
       })
       .where(eq(workspaces.id, workspace.id));
     return null;

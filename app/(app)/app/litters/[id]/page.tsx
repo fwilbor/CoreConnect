@@ -17,10 +17,10 @@ export default async function LitterPage({ params }: { params: Promise<{ id: str
   const { user, workspace } = await requireWorkspace();
   const data = await withUser(user.id, async (tx) => {
     const [litter] = (await tx.execute(sql`
-      select id, name, is_general, sire, dam, expected_date::text, born_date::text, expected_count, status
+      select id, name, is_general, sire, dam, expected_date::text, born_date::text, go_home_date::text, expected_count, status
       from litters where id = ${id} and workspace_id = ${workspace.id}`)) as unknown as {
       id: string; name: string; is_general: boolean; sire: string | null; dam: string | null; expected_date: string | null;
-      born_date: string | null; expected_count: number | null; status: LitterStatus;
+      born_date: string | null; go_home_date: string | null; expected_count: number | null; status: LitterStatus;
     }[];
     if (!litter) return null;
     return { litter, entries: await listWaitlist(tx, workspace.id, id), history: await waitlistHistory(tx, workspace.id, id) };
@@ -51,7 +51,7 @@ export default async function LitterPage({ params }: { params: Promise<{ id: str
               serviceBusiness={service}
               initial={{
                 name: litter.name, sire: litter.sire ?? "", dam: litter.dam ?? "", expectedDate: litter.expected_date ?? "",
-                bornDate: litter.born_date ?? "", expectedCount: litter.expected_count?.toString() ?? "", status: litter.status,
+                bornDate: litter.born_date ?? "", goHomeDate: litter.go_home_date ?? "", expectedCount: litter.expected_count?.toString() ?? "", status: litter.status,
               }}
             />
           </div>

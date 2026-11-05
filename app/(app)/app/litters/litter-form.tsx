@@ -11,7 +11,7 @@ const STATUS_LABEL: Record<LitterStatus, string> = { planned: "Planned", confirm
 export function LitterForm(props: { litterId?: string; initial?: LitterInput; isGeneral?: boolean; serviceBusiness: boolean }) {
   const router = useRouter();
   const [form, setForm] = useState<LitterInput>(props.initial ?? {
-    name: "", sire: "", dam: "", expectedDate: "", bornDate: "", expectedCount: "", status: "planned",
+    name: "", sire: "", dam: "", expectedDate: "", bornDate: "", goHomeDate: "", expectedCount: "", status: "planned",
   });
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -47,6 +47,10 @@ export function LitterForm(props: { litterId?: string; initial?: LitterInput; is
           <>
             <label className="block text-sm">Expected date<input type="date" value={form.expectedDate} onChange={set("expectedDate")} className={input} /></label>
             <label className="block text-sm">{props.serviceBusiness ? "Start date" : "Born on"}<input type="date" value={form.bornDate} onChange={set("bornDate")} className={input} /></label>
+            {!props.serviceBusiness && (
+              <label className="block text-sm">Go-home date<input type="date" value={form.goHomeDate} onChange={set("goHomeDate")} className={input} />
+                <span className="text-xs text-neutral-500">Leave empty to use 8 weeks after birth</span></label>
+            )}
             <label className="block text-sm">{props.serviceBusiness ? "Spots" : "Expected puppies"}<input value={form.expectedCount} onChange={set("expectedCount")} inputMode="numeric" className={input} /></label>
           </>
         )}

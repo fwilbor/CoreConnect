@@ -14,6 +14,7 @@ export type LitterInput = {
   dam: string;
   expectedDate: string; // YYYY-MM-DD or ""
   bornDate: string;
+  goHomeDate?: string; // breeders only; empty = 8 weeks after birth
   expectedCount: string;
   status: LitterStatus;
 };
@@ -32,15 +33,15 @@ function clean(input: LitterInput) {
   if (count !== null && !(Number.isInteger(count) && count >= 0 && count <= 30)) throw new LeadError("Expected count is 0 to 30");
   return {
     name, sire: input.sire.trim().slice(0, 80) || null, dam: input.dam.trim().slice(0, 80) || null,
-    expectedDate: date(input.expectedDate), bornDate: date(input.bornDate), count, status: input.status,
+    expectedDate: date(input.expectedDate), bornDate: date(input.bornDate), goHomeDate: date(input.goHomeDate ?? ""), count, status: input.status,
   };
 }
 
 export async function createLitter(tx: Tx, ctx: Ctx, input: LitterInput) {
   const l = clean(input);
   const [row] = await tx.execute(sql`
-    insert into litters (workspace_id, name, sire, dam, expected_date, born_date, expected_count, status)
-    values (${ctx.workspaceId}, ${l.name}, ${l.sire}, ${l.dam}, ${l.expectedDate}, ${l.bornDate}, ${l.count}, ${l.status})
+    insert into litters (workspace_id, name, sire, dam, expected_date, born_date, go_home_date, expected_count, status)
+    values (${ctx.workspaceId}, ${l.name}, ${l.sire}, ${l.dam}, ${l.expectedDate}, ${l.bornDate}, ${l.goHomeDate}, ${l.count}, ${l.status})
     returning id`);
   return (row as { id: string }).id;
 }
@@ -52,7 +53,7 @@ export async function updateLitter(tx: Tx, ctx: Ctx, litterId: string, input: Li
   if ((current as { is_general: boolean }).is_general && l.status === "closed") throw new LeadError("The general waitlist can't be closed");
   await tx.execute(sql`
     update litters set name = ${l.name}, sire = ${l.sire}, dam = ${l.dam}, expected_date = ${l.expectedDate},
-      born_date = ${l.bornDate}, expected_count = ${l.count}, status = ${l.status}
+      born_date = ${l.bornDate}, go_home_date = ${l.goHomeDate}, expected_count = ${l.count}, status = ${l.status}
     where id = ${litterId} and workspace_id = ${ctx.workspaceId}`);
 }
 

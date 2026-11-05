@@ -25,6 +25,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         logoUrl: workspaces.logoUrl, smsEnabled: workspaces.smsEnabled, smsNumber: workspaces.smsNumberE164,
         depositAmountCents: workspaces.depositAmountCents, depositTerms: workspaces.depositTerms,
         stripeAccountId: workspaces.stripeAccountId, stripeChargesEnabled: workspaces.stripeChargesEnabled,
+        digestTime: workspaces.digestTime, timezone: workspaces.timezone,
       })
       .from(workspaces)
       .where(eq(workspaces.id, workspace.id)),
@@ -71,7 +72,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           send until it&apos;s set.
         </p>
       )}
-      <BusinessForm initial={ws} />
+      <BusinessForm initial={ws} timezones={Intl.supportedValuesOf("timeZone").filter((tz) => tz.startsWith("America/") || tz.startsWith("Pacific/") || tz === ws.timezone)} />
     </main>
   );
 }
