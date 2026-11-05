@@ -1,4 +1,5 @@
 import { loadDepositPage } from "@/lib/deposits";
+import { PublicFooter } from "../../../legal";
 
 export const metadata = { title: "Deposit" };
 
@@ -70,6 +71,7 @@ export default async function DepositPage({
           <p className="text-xs text-neutral-500">Payment is processed by Stripe and goes directly to {page.workspaceName}.</p>
         </form>
       )}
+      <PublicFooter slug={slug} />
     </main>
   );
 }

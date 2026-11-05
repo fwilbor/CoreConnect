@@ -1,4 +1,5 @@
 import { loadApplication } from "@/lib/applications";
+import { PublicFooter } from "../../../legal";
 import { ApplicationForm } from "./application-form";
 
 export const metadata = { title: "Application" };
@@ -37,6 +38,7 @@ export default async function ApplyPage({ params }: { params: Promise<{ slug: st
           )}
         </>
       )}
+      {app && <PublicFooter slug={slug} />}
     </main>
   );
 }

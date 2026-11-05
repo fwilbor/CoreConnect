@@ -105,7 +105,11 @@ export function InquiryForm(props: {
 
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" name="sms_consent" className="mt-1" />
-          <span>{props.consentText} (Optional)</span>
+          <span>
+            {props.consentText} (Optional) See our{" "}
+            <a href={`/${props.slug}/terms`} target="_blank" rel="noopener" className="underline">SMS terms</a> and{" "}
+            <a href={`/${props.slug}/privacy`} target="_blank" rel="noopener" className="underline">privacy policy</a>.
+          </span>
         </label>
 
         <div className="cf-turnstile" data-sitekey={props.siteKey} />

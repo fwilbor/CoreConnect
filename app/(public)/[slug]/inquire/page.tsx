@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { HEARD_ABOUT, loadPublicForm, smsConsentText } from "@/lib/intake/public";
+import { PublicFooter } from "../../legal";
 import { InquiryForm } from "./inquiry-form";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
@@ -36,7 +37,7 @@ export default async function InquirePage({
     />
   );
 
-  if (isEmbed) return <main className="p-4">{formEl}</main>;
+  if (isEmbed) return <main className="p-4">{formEl}<PublicFooter slug={form.slug} small /></main>;
 
   return (
     <main className="mx-auto max-w-xl px-4 py-8">
@@ -52,6 +53,7 @@ export default async function InquirePage({
         </div>
       </header>
       {formEl}
+      <PublicFooter slug={form.slug} />
     </main>
   );
 }

@@ -7,7 +7,7 @@ import { users, workspaces } from "@/lib/db/schema";
 // Public forms live at /{slug}/inquire, so a slug can't shadow an app route.
 export const RESERVED_SLUGS = new Set([
   "app", "admin", "api", "auth", "login", "logout", "embed", "static", "public", "settings",
-  "_next", "favicon", "robots", "sitemap", "help", "support", "www", "coreconnect", "corestore",
+  "_next", "favicon", "robots", "sitemap", "help", "support", "www", "coreconnect", "corestore", "privacy", "terms", "legal",
 ]);
 
 export const CreateWorkspaceInput = z.object({
