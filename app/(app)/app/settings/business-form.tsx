@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useSubmitKeepingValues } from "@/lib/forms-client";
 import { saveBusinessSettings, type BusinessState } from "./actions";
 
 const input = "mt-1 w-full rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 text-sm dark:border-neutral-700";
@@ -14,8 +15,10 @@ export function BusinessForm({ initial, timezones }: {
   };
 }) {
   const [state, action, pending] = useActionState<BusinessState, FormData>(saveBusinessSettings, {});
+  // Keeps what was typed when the save fails (React resets form-action forms).
+  const onSubmit = useSubmitKeepingValues(action);
   return (
-    <form action={action} className="mt-3 space-y-3">
+    <form onSubmit={onSubmit} className="mt-3 space-y-3">
       <label className="block text-sm">
         Business name
         <input name="name" defaultValue={initial.name} required maxLength={120} className={input} />

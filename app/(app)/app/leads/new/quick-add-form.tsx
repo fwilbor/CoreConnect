@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useSubmitKeepingValues } from "@/lib/forms-client";
 import { quickAddLead, type QuickAddState } from "./actions";
 
 const SOURCES = [
@@ -12,10 +13,12 @@ const input = "mt-1 w-full rounded-md border border-neutral-300 bg-transparent p
 
 export function QuickAddForm() {
   const [state, action, pending] = useActionState<QuickAddState, FormData>(quickAddLead, {});
+  // Keeps what was typed when the save fails (React resets form-action forms).
+  const onSubmit = useSubmitKeepingValues(action);
   const f = state.fields;
 
   return (
-    <form action={action} className="mt-6 space-y-4">
+    <form onSubmit={onSubmit} className="mt-6 space-y-4">
       <label className="block text-sm font-medium">
         Name
         <input name="name" required autoFocus autoComplete="off" defaultValue={f?.name} className={input} />

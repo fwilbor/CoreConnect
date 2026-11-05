@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { useSubmitKeepingValues } from "@/lib/forms-client";
 import { FIELD_TYPES, MAX_CUSTOM_FIELDS, type FieldType, type FormField } from "@/lib/intake/fields";
 import { saveForm, type SaveFormState } from "./actions";
 
@@ -28,6 +29,8 @@ export function FieldBuilder(props: { kind: "inquiry" | "application"; initialTi
     props.initialFields.map((f) => ({ ...f, optionsText: (f.options ?? []).join("\n") })),
   );
   const [state, action, pending] = useActionState<SaveFormState, FormData>(saveForm, {});
+  // Keeps what was typed when the save fails (React resets form-action forms).
+  const onSubmit = useSubmitKeepingValues(action);
 
   const update = (i: number, patch: Partial<Draft>) =>
     setFields((fs) => fs.map((f, j) => (j === i ? { ...f, ...patch } : f)));
@@ -51,7 +54,7 @@ export function FieldBuilder(props: { kind: "inquiry" | "application"; initialTi
   });
 
   return (
-    <form action={action} className="mt-4 space-y-4">
+    <form onSubmit={onSubmit} className="mt-4 space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-sm">
           Form title

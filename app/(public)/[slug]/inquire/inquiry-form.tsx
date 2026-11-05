@@ -3,7 +3,8 @@
 import Script from "next/script";
 import { useActionState, useEffect, useRef } from "react";
 import type { FormField } from "@/lib/intake/fields";
-import { CustomField, fieldInputClass as input } from "../../form-fields";
+import { errorProps, useFocusFirstError, useSubmitKeepingValues } from "@/lib/forms-client";
+import { CustomField, FieldError, fieldInputClass as input } from "../../form-fields";
 import { HONEYPOT_FIELD } from "@/lib/intake/honeypot";
 import { submitInquiryAction, type InquiryState } from "./actions";
 
@@ -26,7 +27,10 @@ export function InquiryForm(props: {
   const action = submitInquiryAction.bind(null, props.slug, props.channel);
   const [state, formAction, pending] = useActionState<InquiryState, FormData>(action, { status: "idle" });
   const rootRef = useRef<HTMLDivElement>(null);
-  const errors = state.status === "error" ? (state.errors ?? {}) : {};
+  const errors: Record<string, string> = state.status === "error" ? (state.errors ?? {}) : {};
+  const formRef = useRef<HTMLFormElement>(null);
+  const onSubmit = useSubmitKeepingValues(formAction);
+  useFocusFirstError(formRef, state.status === "error" ? state.errors : null);
 
   // A Turnstile token works once; get a fresh one after a failed submit.
   useEffect(() => {
@@ -45,8 +49,8 @@ export function InquiryForm(props: {
   }, [props.channel, state]);
 
   const accent = props.brandColor ?? "#171717";
-  const fieldError = (key: string) =>
-    errors[key] ? <span className="mt-1 block text-sm text-red-600">{errors[key]}</span> : null;
+  const fieldError = (key: string) => <FieldError id={key} error={errors[key]} />;
+  const a11y = (key: string) => errorProps(key, errors[key]);
 
   if (state.status === "success") {
     return (
@@ -60,11 +64,11 @@ export function InquiryForm(props: {
   return (
     <div ref={rootRef}>
       <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="afterInteractive" />
-      <form action={formAction} className="space-y-4" noValidate>
+      <form ref={formRef} onSubmit={onSubmit} className="space-y-4" noValidate>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm font-medium">
             First name *
-            <input name="first_name" required autoComplete="given-name" maxLength={80} className={input} />
+            <input name="first_name" required autoComplete="given-name" maxLength={80} className={input} {...a11y("first_name")} />
             {fieldError("first_name")}
           </label>
           <label className="block text-sm font-medium">
@@ -74,17 +78,17 @@ export function InquiryForm(props: {
         </div>
         <label className="block text-sm font-medium">
           Email *
-          <input name="email" type="email" required autoComplete="email" className={input} />
+          <input name="email" type="email" required autoComplete="email" className={input} {...a11y("email")} />
           {fieldError("email")}
         </label>
         <label className="block text-sm font-medium">
           Phone *
-          <input name="phone" type="tel" required autoComplete="tel" className={input} />
+          <input name="phone" type="tel" required autoComplete="tel" className={input} {...a11y("phone")} />
           {fieldError("phone")}
         </label>
         <label className="block text-sm font-medium">
           How did you hear about us? *
-          <select name="source" required defaultValue="" className={input}>
+          <select name="source" required defaultValue="" className={input} {...a11y("source")}>
             <option value="" disabled>Choose one</option>
             {props.heardAbout.map((h) => <option key={h}>{h}</option>)}
           </select>
@@ -92,7 +96,7 @@ export function InquiryForm(props: {
         </label>
 
         {props.fields.map((f) => (
-          <CustomField key={f.key} field={f} error={fieldError(f.key)} />
+          <CustomField key={f.key} field={f} error={errors[f.key]} />
         ))}
 
         {/* Hidden from people and screen readers; bots tend to fill it. */}
