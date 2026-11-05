@@ -6,6 +6,7 @@ import { switchWorkspace } from "./actions";
 
 const NAV = [
   { href: "/app", label: "Today" },
+  { href: "/app/dashboard", label: "Dashboard" },
   { href: "/app/leads", label: "Leads" },
   { href: "/app/inbox", label: "Inbox" },
   { href: "/app/litters", label: "Litters" },
