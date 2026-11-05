@@ -71,3 +71,15 @@ right after responding, so auto-replies go out in seconds.
    pooler URL (port 6543).
 
 Create workspaces at `/admin/workspaces`. Creating one invites the owner by email.
+
+## Monitoring
+
+- **Errors:** set `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` (same value) to report
+  server and browser errors to Sentry. Emails, phone numbers and query parameters
+  are scrubbed before sending (`lib/sentry-scrub.ts`). Unset, nothing is sent.
+- **Scheduler:** with Sentry on, every `/api/jobs/tick` checks in to the `job-tick`
+  cron monitor, which Sentry creates on the first check-in. Sentry raises an
+  issue after 3 missed or failed ticks.
+- **Uptime:** point an uptime monitor (Sentry Uptime, Better Stack, UptimeRobot)
+  at `/api/health`. It returns 200 when the database answers and no message has
+  been stuck in the queue for 15 minutes, and 503 otherwise.
