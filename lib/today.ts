@@ -36,8 +36,8 @@ const displayName = sql`coalesce(nullif(trim(concat_ws(' ', c.first_name, c.last
 // sends don't count, so a lead in the Nurture sequence can still go cold.
 const lastTouch = sql`greatest(
   l.created_at, l.last_contacted_at,
-  (select max(a.created_at) from activities a where a.lead_id = l.id),
-  (select max(m.created_at) from messages m where m.lead_id = l.id and m.direction = 'in'))`;
+  (select max(a.created_at) from activities a where a.workspace_id = l.workspace_id and a.lead_id = l.id),
+  (select max(m.created_at) from messages m where m.workspace_id = l.workspace_id and m.lead_id = l.id and m.direction = 'in'))`;
 
 export async function loadToday(tx: Tx, workspaceId: string): Promise<Today> {
   const [ws] = (await tx.execute(sql`

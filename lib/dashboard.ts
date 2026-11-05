@@ -51,8 +51,10 @@ export async function loadDashboard(tx: Tx, workspaceId: string, days: PeriodDay
   const response = sql`
     select l.id, l.created_at, l.closed_at,
       least(
-        (select min(m.created_at) from messages m where m.lead_id = l.id and m.direction = 'out' and m.kind = 'one_off'),
-        (select min(a.created_at) from activities a where a.lead_id = l.id and a.type = 'call_logged')) as first_touch
+        (select min(m.created_at) from messages m
+         where m.workspace_id = l.workspace_id and m.lead_id = l.id and m.direction = 'out' and m.kind = 'one_off'),
+        (select min(a.created_at) from activities a
+         where a.workspace_id = l.workspace_id and a.lead_id = l.id and a.type = 'call_logged')) as first_touch
     from leads l where l.workspace_id = ${workspaceId} and l.source <> 'import'`;
   const [resp] = (await tx.execute(sql`
     with r as (${response})
@@ -99,7 +101,8 @@ export async function loadDashboard(tx: Tx, workspaceId: string, days: PeriodDay
   const sources = (await tx.execute(sql`
     select l.source, count(*)::int as leads,
       count(*) filter (where exists (
-        select 1 from payments p where p.lead_id = l.id and p.kind = 'deposit' and p.status = 'paid'))::int as deposits
+        select 1 from payments p
+        where p.workspace_id = l.workspace_id and p.lead_id = l.id and p.kind = 'deposit' and p.status = 'paid'))::int as deposits
     from leads l
     where l.workspace_id = ${workspaceId} and l.source <> 'import' and l.created_at >= ${since}
     group by l.source order by leads desc, l.source`)) as unknown as SourceRow[];
