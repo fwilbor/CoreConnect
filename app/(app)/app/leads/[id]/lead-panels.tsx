@@ -1,5 +1,6 @@
 "use client";
 
+import { formatInZone } from "@/lib/format";
 import { useState, useTransition } from "react";
 import type { Stage, TimelineItem } from "@/lib/leads/queries";
 import {
@@ -118,6 +119,7 @@ export function LeadControls(props: {
 type ContactFields = { firstName: string; lastName: string; email: string; phone: string; city: string; state: string };
 
 export function ContactCard(props: {
+  timeZone: string;
   leadId: string; contactId: string; contact: ContactFields; smsConsent: string | null; unsubscribed: boolean; doNotContact: boolean;
 }) {
   const [editing, setEditing] = useState(false);
@@ -138,7 +140,7 @@ export function ContactCard(props: {
           {(c.city || c.state) && <div><dt className="sr-only">Location</dt><dd>{[c.city, c.state].filter(Boolean).join(", ")}</dd></div>}
         </dl>
         <ul className="mt-2 space-y-0.5 text-xs text-neutral-500">
-          <li>SMS: {props.smsConsent ? `consented ${new Date(props.smsConsent).toLocaleDateString()}` : "no consent"}</li>
+          <li>SMS: {props.smsConsent ? `consented ${formatInZone(props.smsConsent, props.timeZone, "dateYear")}` : "no consent"}</li>
           {props.unsubscribed && <li>Unsubscribed from email</li>}
           {props.doNotContact && <li className="text-red-600">Do not contact</li>}
         </ul>
@@ -260,7 +262,7 @@ export function Composer({ leadId, templates }: { leadId: string; templates: Tem
   );
 }
 
-export function TaskList({ leadId, tasks }: { leadId: string; tasks: TimelineItem[] }) {
+export function TaskList({ leadId, tasks, timeZone }: { leadId: string; tasks: TimelineItem[]; timeZone: string }) {
   const [title, setTitle] = useState("");
   const [due, setDue] = useState(() => new Date(Date.now() + 86_400_000).toLocaleDateString("en-CA"));
   const { pending, error, run } = useAction();
@@ -280,7 +282,7 @@ export function TaskList({ leadId, tasks }: { leadId: string; tasks: TimelineIte
                 onChange={(e) => run(() => setTaskDoneAction(leadId, t.id, e.target.checked))} />
               <span className={t.done_at ? "text-neutral-400 line-through" : ""}>{String(t.payload.title)}</span>
               <span className={`ml-auto text-xs ${overdue ? "font-medium text-red-600" : "text-neutral-500"}`}>
-                {t.due_at && new Date(t.due_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                {t.due_at && formatInZone(t.due_at, timeZone, "date")}
               </span>
             </li>
           );

@@ -1,3 +1,4 @@
+import { formatDay } from "@/lib/format";
 import Link from "next/link";
 import { withUser } from "@/lib/db";
 import { listLitters } from "@/lib/litters";
@@ -6,7 +7,7 @@ import { LitterForm } from "./litter-form";
 
 export const metadata = { title: "Litters · CoreConnect" };
 
-const fmt = (d: string | null) => (d ? new Date(`${d.slice(0, 10)}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null);
+const fmt = (d: string | null) => (d ? formatDay(d) : null);
 
 export default async function LittersPage({ searchParams }: { searchParams: Promise<{ closed?: string }> }) {
   const { user, workspace } = await requireWorkspace();

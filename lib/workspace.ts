@@ -13,6 +13,8 @@ export type CurrentWorkspace = {
   name: string;
   slug: string;
   businessType: string;
+  // IANA zone for showing times (lib/format.ts).
+  timezone: string;
   role: "owner" | "staff" | "support";
 };
 
@@ -32,7 +34,7 @@ export async function getWorkspaceContext(user: SessionUser): Promise<WorkspaceC
   const all = (await withUser(user.id, (tx) =>
     tx
       .select({ id: workspaces.id, name: workspaces.name, slug: workspaces.slug, businessType: workspaces.businessType,
-                role: memberships.role })
+                timezone: workspaces.timezone, role: memberships.role })
       .from(memberships)
       .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
       .where(eq(memberships.userId, user.id))

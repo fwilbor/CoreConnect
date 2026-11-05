@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { withUser } from "@/lib/db";
 import { getLeadDetail, type LeadMessage, type TimelineItem } from "@/lib/leads/queries";
+import { formatInZone } from "@/lib/format";
 import { requireWorkspace } from "@/lib/workspace";
 import { leadName } from "../lead-flags";
 import { listPayments } from "@/lib/payments";
@@ -17,6 +18,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
   const { user, workspace } = await requireWorkspace();
+  const tz = workspace.timezone;
   const detail = await withUser(user.id, async (tx) => {
     // Opening the lead counts as reading its replies (Inbox shows unread ones).
     await tx.execute(sql`
@@ -51,8 +53,8 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
       <Link href="/app/leads" className="text-sm text-neutral-500 hover:underline">← Leads</Link>
       <h1 className="mt-2 text-2xl font-semibold">{leadName(lead)}</h1>
       <p className="text-sm text-neutral-500">
-        <span className="capitalize">{lead.source}</span> · added {fmt(lead.created_at)}
-        {lead.closed_at && ` · closed ${fmt(lead.closed_at)}${lead.closed_reason ? ` (${lead.closed_reason})` : ""}`}
+        <span className="capitalize">{lead.source}</span> · added {fmt(lead.created_at, tz)}
+        {lead.closed_at && ` · closed ${fmt(lead.closed_at, tz)}${lead.closed_reason ? ` (${lead.closed_reason})` : ""}`}
       </p>
 
       {lead.needs_merge_review && <MergeReviewBanner leadId={lead.id} contactId={lead.contact_id} />}
@@ -77,7 +79,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
           />
           <WaitlistPanel leadId={lead.id} closed={lead.closed_at !== null} litters={detail.litters} entry={detail.entry} />
           <PaymentsPanel leadId={lead.id} payments={detail.payments} depositsReady={detail.extra.deposits_ready} closed={lead.closed_at !== null} />
-          <ContactCard
+          <ContactCard timeZone={tz}
             leadId={lead.id}
             contactId={lead.contact_id}
             contact={{
@@ -93,7 +95,7 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
               <h2 className="text-sm font-semibold">Form answers</h2>
               {detail.submissions.map((s) => (
                 <div key={s.id} className="mt-2 rounded-md border border-neutral-200 p-3 text-sm dark:border-neutral-800">
-                  <p className="text-xs text-neutral-500">{s.form_title} · {fmt(s.submitted_at)}</p>
+                  <p className="text-xs text-neutral-500">{s.form_title} · {fmt(s.submitted_at, tz)}</p>
                   {s.answers.length === 0 ? (
                     <p className="mt-1 text-neutral-500">No answers to custom questions.</p>
                   ) : (
@@ -114,20 +116,20 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
 
         <div className="min-w-0 space-y-6">
           <Composer leadId={lead.id} templates={detail.templates} />
-          <TaskList leadId={lead.id} tasks={detail.tasks} />
+          <TaskList leadId={lead.id} tasks={detail.tasks} timeZone={tz} />
           <section>
             <h2 className="text-sm font-semibold">Timeline</h2>
             <ol className="mt-2 space-y-3">
               {merge(detail.timeline, detail.messages).map((entry) =>
                 entry.kind === "message" ? (
-                  <MessageEntry key={entry.item.id} m={entry.item} />
+                  <MessageEntry key={entry.item.id} m={entry.item} tz={tz} />
                 ) : (
                   <li key={entry.item.id} className="border-l-2 border-neutral-200 pl-3 text-sm dark:border-neutral-800">
-                    <p>{describe(entry.item)}</p>
+                    <p>{describe(entry.item, tz)}</p>
                     {"text" in entry.item.payload && entry.item.payload.text ? (
                       <p className="mt-1 whitespace-pre-wrap text-neutral-700 dark:text-neutral-300">{String(entry.item.payload.text)}</p>
                     ) : null}
-                    <p className="mt-0.5 text-xs text-neutral-500">{entry.item.actor_name ? `${entry.item.actor_name} · ` : ""}{fmt(entry.item.created_at, true)}</p>
+                    <p className="mt-0.5 text-xs text-neutral-500">{entry.item.actor_name ? `${entry.item.actor_name} · ` : ""}{fmt(entry.item.created_at, tz, true)}</p>
                   </li>
                 ),
               )}
@@ -144,21 +146,19 @@ export default async function LeadPage({ params }: { params: Promise<{ id: strin
   );
 }
 
-function fmt(iso: string, withTime = false) {
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short", day: "numeric", year: "numeric", ...(withTime ? { hour: "numeric", minute: "2-digit" } : {}),
-  });
+function fmt(iso: string, tz: string, withTime = false) {
+  return formatInZone(iso, tz, withTime ? "dateTimeYear" : "dateYear");
 }
 
 const CHANNELS: Record<string, string> = { call: "Call", text: "Text", dm: "DM", in_person: "In person" };
 
-function describe(item: TimelineItem): string {
+function describe(item: TimelineItem, tz: string): string {
   const p = item.payload as Record<string, string | boolean | null>;
   switch (item.type) {
     case "note": return "Note";
     case "call_logged": return `${CHANNELS[String(p.channel)] ?? "Contact"} logged`;
     case "stage_change": return `Moved from ${p.from ?? "?"} to ${p.to}${p.reason ? ` (${p.reason})` : ""}`;
-    case "task": return `Task: ${p.title}${item.done_at ? " (done)" : ` · due ${fmt(item.due_at!)}`}`;
+    case "task": return `Task: ${p.title}${item.done_at ? " (done)" : ` · due ${fmt(item.due_at!, tz)}`}`;
     case "form":
       if (p.event === "application_submitted") return "Submitted the application";
       if (p.event === "email_inquiry") return `Inquiry by email${p.subject ? `: ${p.subject}` : ""}${p.forwarded_by ? ` (forwarded by ${p.forwarded_by})` : ""}`;
@@ -189,19 +189,19 @@ function merge(activities: TimelineItem[], messages: LeadMessage[]): Entry[] {
 
 const KIND_LABEL: Record<string, string> = { auto_reply: "Auto-reply", sequence: "Nurture", reminder: "Reminder", system: "System" };
 
-function MessageEntry({ m }: { m: LeadMessage }) {
+function MessageEntry({ m, tz }: { m: LeadMessage; tz: string }) {
   const inbound = m.direction === "in";
   const label = `${inbound ? "Received" : "Sent"} ${m.channel === "email" ? "email" : "text"}${KIND_LABEL[m.kind] && !inbound ? ` · ${KIND_LABEL[m.kind]}` : ""}`;
   const status =
     m.status === "failed" ? `Failed: ${m.last_error ?? "unknown error"}`
-    : m.status === "queued" ? (m.send_after && new Date(m.send_after) > new Date() ? `Scheduled for ${fmt(m.send_after, true)}` : "Sending")
+    : m.status === "queued" ? (m.send_after && new Date(m.send_after) > new Date() ? `Scheduled for ${fmt(m.send_after, tz, true)}` : "Sending")
     : m.status === "delivered" ? "Delivered" : m.status === "sent" ? "Sent" : "";
   return (
     <li className={`border-l-2 pl-3 text-sm ${inbound ? "border-blue-400" : m.status === "failed" ? "border-red-500" : "border-neutral-400 dark:border-neutral-600"}`}>
       <p className="font-medium">{label}{m.subject ? `: ${m.subject}` : ""}</p>
       <p className="mt-1 whitespace-pre-wrap text-neutral-700 dark:text-neutral-300">{m.body}</p>
       <p className={`mt-0.5 text-xs ${m.status === "failed" ? "text-red-600" : "text-neutral-500"}`}>
-        {m.author_name ? `${m.author_name} · ` : ""}{fmt(m.created_at, true)}{status && !inbound ? ` · ${status}` : ""}
+        {m.author_name ? `${m.author_name} · ` : ""}{fmt(m.created_at, tz, true)}{status && !inbound ? ` · ${status}` : ""}
       </p>
     </li>
   );

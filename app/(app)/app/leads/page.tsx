@@ -1,3 +1,4 @@
+import { formatInZone } from "@/lib/format";
 import Link from "next/link";
 import { withUser } from "@/lib/db";
 import { filterOptions, LEAD_SORTS, listLeads, listStages, type LeadFilters, type LeadSort } from "@/lib/leads/queries";
@@ -122,9 +123,9 @@ export default async function LeadsPage({ searchParams }: { searchParams: Promis
                     <td className="pr-3">{l.rating ? "★".repeat(l.rating) : ""}</td>
                     <td className={`pr-3 ${isGoingCold(l) ? "text-amber-700 dark:text-amber-400" : ""}`}>{relativeDay(l.last_contacted_at)}</td>
                     <td className={`pr-3 ${isOverdue(l) ? "font-medium text-red-600" : ""}`}>
-                      {l.next_task_due_at ? new Date(l.next_task_due_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}
+                      {l.next_task_due_at ? formatInZone(l.next_task_due_at, workspace.timezone, "date") : ""}
                     </td>
-                    <td className="whitespace-nowrap text-neutral-500">{new Date(l.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</td>
+                    <td className="whitespace-nowrap text-neutral-500">{formatInZone(l.created_at, workspace.timezone, "date")}</td>
                   </tr>
                 ))}
               </tbody>

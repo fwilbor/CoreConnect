@@ -1,3 +1,4 @@
+import { formatInZone } from "@/lib/format";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { sql } from "drizzle-orm";
@@ -69,7 +70,7 @@ export default async function LitterPage({ params }: { params: Promise<{ id: str
               </p>
               {h.reason && <p className="text-neutral-600 dark:text-neutral-300">{h.reason}</p>}
               <p className="text-xs text-neutral-500">
-                {h.actor_name ?? "System"} · {new Date(h.created_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                {h.actor_name ?? "System"} · {formatInZone(h.created_at, workspace.timezone, "dateTimeYear")}
               </p>
             </li>
           ))}

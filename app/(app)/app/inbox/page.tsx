@@ -1,3 +1,4 @@
+import { formatInZone } from "@/lib/format";
 import Link from "next/link";
 import { sql } from "drizzle-orm";
 import { withUser } from "@/lib/db";
@@ -28,13 +29,13 @@ export default async function InboxPage() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-6">
       <h1 className="text-2xl font-semibold">Inbox</h1>
-      <Section title={`Unread replies (${unread.length})`} rows={unread} empty="No unread replies." />
-      <Section title={`Failed sends, last 14 days (${failed.length})`} rows={failed} empty="Nothing failed." />
+      <Section title={`Unread replies (${unread.length})`} rows={unread} empty="No unread replies." timeZone={workspace.timezone} />
+      <Section title={`Failed sends, last 14 days (${failed.length})`} rows={failed} empty="Nothing failed." timeZone={workspace.timezone} />
     </main>
   );
 }
 
-function Section({ title, rows, empty }: { title: string; rows: Row[]; empty: string }) {
+function Section({ title, rows, empty, timeZone }: { title: string; rows: Row[]; empty: string; timeZone: string }) {
   return (
     <section className="mt-6">
       <h2 className="text-sm font-semibold">{title}</h2>
@@ -48,7 +49,7 @@ function Section({ title, rows, empty }: { title: string; rows: Row[]; empty: st
                 <div className="flex items-baseline justify-between gap-2 text-sm">
                   <span className="font-medium">{[r.first_name, r.last_name].filter(Boolean).join(" ") || "Unknown"}</span>
                   <span className="shrink-0 text-xs text-neutral-500">
-                    {r.channel === "sms" ? "Text" : "Email"} · {new Date(r.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    {r.channel === "sms" ? "Text" : "Email"} · {formatInZone(r.created_at, timeZone)}
                   </span>
                 </div>
                 <p className="mt-0.5 line-clamp-2 text-sm text-neutral-600 dark:text-neutral-300">{r.subject ? `${r.subject}: ` : ""}{r.body}</p>

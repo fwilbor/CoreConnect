@@ -1,4 +1,5 @@
 import "server-only";
+import { formatDay } from "@/lib/format";
 import { sql, type SQL } from "drizzle-orm";
 import type { Tx } from "@/lib/db";
 import { FormFields, type FormField } from "@/lib/intake/fields";
@@ -144,7 +145,7 @@ function formatAnswer(field: FormField | undefined, value: unknown): string {
   if (Array.isArray(value)) return value.join(", ");
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (field?.type === "date" && typeof value === "string") {
-    return new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return formatDay(value);
   }
   return String(value);
 }
