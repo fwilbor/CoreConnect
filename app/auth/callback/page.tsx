@@ -40,7 +40,8 @@ export default function AuthCallbackPage() {
         <>
           <h1 className="text-xl font-semibold">That link didn&apos;t work</h1>
           <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
-            Sign-in links work once and expire after an hour. Request a new one and use it on this device.
+            It may have expired, been used already, or been replaced by a newer email. Ask for a new one and open it in
+            the same browser you asked from.
           </p>
           <Link href="/login" className="mt-4 text-sm underline">
             Get a new sign-in link
