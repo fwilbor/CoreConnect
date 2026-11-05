@@ -30,7 +30,10 @@ describe("tokens", () => {
     const token = createToken("unsubscribe", "contact-1");
     expect(verifyToken(token, "unsubscribe")).toBe("contact-1");
     expect(verifyToken(token, "apply")).toBeNull();
-    expect(verifyToken(`${token.slice(0, -1)}x`, "unsubscribe")).toBeNull();
+    // Flip the MAC's first character: the last one carries unused bits, so changing it can leave the bytes as they were.
+    const macStart = token.indexOf(".") + 1;
+    const flipped = token[macStart] === "A" ? "B" : "A";
+    expect(verifyToken(`${token.slice(0, macStart)}${flipped}${token.slice(macStart + 1)}`, "unsubscribe")).toBeNull();
     const [, mac] = token.split(".");
     const forged = `${Buffer.from(JSON.stringify({ p: "unsubscribe", i: "contact-2", e: 9e9 })).toString("base64url")}.${mac}`;
     expect(verifyToken(forged, "unsubscribe")).toBeNull();

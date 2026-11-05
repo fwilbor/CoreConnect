@@ -188,6 +188,19 @@ describe("Nurture sequence", () => {
     expect(row.hours).toBe(72);
   });
 
+  it("after an outage, sends one overdue step and keeps the planned gap before the next", async () => {
+    const { leadId } = await lead();
+    await db.execute(sql`
+      update sequence_enrollments set created_at = now() - interval '30 days', next_run_at = now() - interval '29 days'
+      where lead_id = ${leadId}`);
+    await runDueSequenceSteps(db);
+    await runDueSequenceSteps(db);
+    expect((await messagesFor(leadId)).filter((m) => m.kind === "sequence")).toHaveLength(1);
+    const [row] = await q<{ hours: number }>(sql`
+      select round(extract(epoch from next_run_at - now()) / 3600)::int as hours from sequence_enrollments where lead_id = ${leadId}`);
+    expect(row.hours).toBe(48);
+  });
+
   it("stops on an inbound reply, a stage change or a closed lead", async () => {
     const replied = await lead();
     await db.execute(sql`insert into messages (workspace_id, lead_id, channel, direction, body, status)

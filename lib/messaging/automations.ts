@@ -106,11 +106,15 @@ export async function runDueSequenceSteps(db: Database, limit = 100) {
       if (result.queued) counts.queued++;
       else counts.skipped++;
 
-      // Delays are measured from enrollment: day 1, day 3, day 7.
+      // Delays are measured from enrollment: day 1, day 3, day 7. If this step
+      // ran late (jobs paused, an outage), the next one still waits the planned
+      // gap after it, so a backlog never sends several steps back to back.
       if (next) {
         await tx.execute(sql`
           update sequence_enrollments set next_step = ${next.step_number},
-            next_run_at = created_at + make_interval(hours => ${next.delay_hours})
+            next_run_at = greatest(
+              created_at + make_interval(hours => ${next.delay_hours}),
+              now() + make_interval(hours => ${next.delay_hours - step.delay_hours}))
           where id = ${e.id}`);
       } else {
         await tx.execute(sql`update sequence_enrollments set status = 'completed', next_run_at = null where id = ${e.id}`);

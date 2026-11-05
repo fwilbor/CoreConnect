@@ -30,6 +30,8 @@ export async function GET(request: NextRequest) {
     ? await supabase.auth.exchangeCodeForSession(code)
     : await supabase.auth.verifyOtp({ token_hash: tokenHash!, type: type! });
 
+  if (error) console.error(`sign-in link failed: ${error.status ?? ""} ${error.code ?? ""} ${error.message}`);
+
   const url = request.nextUrl.clone();
   url.search = "";
   url.pathname = error ? "/login" : destination;
