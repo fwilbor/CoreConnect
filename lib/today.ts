@@ -7,7 +7,8 @@ import type { Tx } from "@/lib/db";
 //   new leads (24 h), going cold, tasks due, payments received, upcoming go-home dates.
 // Failed sends are included too (Performance and reliability: "shown in Inbox and digest").
 
-export const GOING_COLD_DAYS = 3;
+export { GOING_COLD_DAYS } from "@/lib/going-cold";
+import { GOING_COLD_DAYS } from "@/lib/going-cold";
 export const GO_HOME_WINDOW_DAYS = 14;
 // When a breeder's litter has a birth date but no go-home date, assume 8 weeks.
 export const DEFAULT_GO_HOME_DAYS = 56;
@@ -34,7 +35,8 @@ const displayName = sql`coalesce(nullif(trim(concat_ws(' ', c.first_name, c.last
 // A lead's last touch: when it came in, a logged contact or manual message
 // (last_contacted_at), any timeline activity, or an inbound reply. Automated
 // sends don't count, so a lead in the Nurture sequence can still go cold.
-const lastTouch = sql`greatest(
+// Exported for the board, so its going-cold flag matches Today exactly.
+export const lastTouch = sql`greatest(
   l.created_at, l.last_contacted_at,
   (select max(a.created_at) from activities a where a.workspace_id = l.workspace_id and a.lead_id = l.id),
   (select max(m.created_at) from messages m where m.workspace_id = l.workspace_id and m.lead_id = l.id and m.direction = 'in'))`;

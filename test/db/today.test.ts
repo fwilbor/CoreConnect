@@ -8,6 +8,8 @@ import { addNote, addTask } from "@/lib/leads/mutations";
 import { createLitter } from "@/lib/litters";
 import { logTransports } from "@/lib/messaging/transports";
 import { loadToday } from "@/lib/today";
+import { listLeads } from "@/lib/leads/queries";
+import { isGoingCold } from "@/app/(app)/app/leads/lead-flags";
 import { TEST_DATABASE_URL } from "../global-setup";
 
 process.env.NEXT_PUBLIC_SITE_URL = "https://app.example";
@@ -98,6 +100,23 @@ describe("Today", () => {
     await as((tx) => createLitter(tx, ctx(), { ...base, name: "Later", bornDate: born, goHomeDate: later }));
     const goHome = (await as((tx) => loadToday(tx, ws))).goHome;
     expect(goHome.map((g) => [g.litter, g.assumed])).toEqual([["Set", false], ["Assumed", true]]);
+  });
+
+  it("agrees with the board's going-cold flag, lead for lead", async () => {
+    const noted = await newLead("Nora");
+    const quiet = await newLead("Quin");
+    for (const id of [noted, quiet]) await age(id, 6);
+    // A note today is a touch for both, even though nobody was "contacted".
+    await as((tx) => addNote(tx, ctx(), noted, "Asked about colors"));
+
+    const todayCold = new Set((await as((tx) => loadToday(tx, ws))).goingCold.map((l) => l.lead_id));
+    const board = await as((tx) => listLeads(tx, ws));
+    for (const id of [noted, quiet]) {
+      const card = board.find((l) => l.id === id)!;
+      expect(isGoingCold(card)).toBe(todayCold.has(id));
+    }
+    expect(todayCold.has(quiet)).toBe(true);
+    expect(todayCold.has(noted)).toBe(false);
   });
 
   it("can't be read for another workspace", async () => {

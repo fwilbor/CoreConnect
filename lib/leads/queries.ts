@@ -2,6 +2,7 @@ import "server-only";
 import { formatDay } from "@/lib/format";
 import { sql, type SQL } from "drizzle-orm";
 import type { Tx } from "@/lib/db";
+import { lastTouch } from "@/lib/today";
 import { FormFields, type FormField } from "@/lib/intake/fields";
 
 export type Stage = { id: string; name: string; position: number; kind: "open" | "won" | "lost" };
@@ -40,6 +41,8 @@ export type BoardLead = {
   assignee_name: string | null;
   litter_name: string | null;
   last_contacted_at: string | null;
+  // Latest touch of any kind (see lastTouch in lib/today.ts): drives going cold.
+  last_touch_at: string;
   next_task_due_at: string | null;
   needs_merge_review: boolean;
   closed_at: string | null;
@@ -78,7 +81,7 @@ export async function listLeads(tx: Tx, workspaceId: string, f: LeadFilters = {}
   return (await tx.execute(sql`
     select l.id, l.stage_id, c.first_name, c.last_name, c.email_norm, c.phone_e164, l.source, l.tags, l.rating,
            coalesce(u.name, u.email) as assignee_name, li.name as litter_name,
-           l.last_contacted_at, l.next_task_due_at, c.needs_merge_review, l.closed_at, l.created_at
+           l.last_contacted_at, ${lastTouch} as last_touch_at, l.next_task_due_at, c.needs_merge_review, l.closed_at, l.created_at
     from leads l
     join contacts c on c.id = l.contact_id
     left join users u on u.id = l.assigned_user_id
