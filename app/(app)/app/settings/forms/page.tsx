@@ -45,6 +45,18 @@ export default async function FormsSettingsPage() {
             <p className="text-sm text-neutral-500">Paste this into a custom code or HTML block on Wix, Squarespace, WordPress or Shopify.</p>
             <pre className="mt-2 overflow-x-auto rounded-md bg-neutral-100 p-3 text-xs dark:bg-neutral-900"><code>{embedCode}</code></pre>
           </div>
+          {process.env.EMAIL_INBOUND_DOMAIN && (
+            <div>
+              <h2 className="text-sm font-medium">Forward inquiries by email</h2>
+              <p className="text-sm text-neutral-500">
+                Got an inquiry in your own inbox? Forward it here and it becomes a lead, with the auto-reply sent to them.
+                Forward from the email address you sign in with.
+              </p>
+              <p className="mt-2 select-all rounded-md bg-neutral-100 p-3 font-mono text-sm dark:bg-neutral-900">
+                {workspace.slug}@{process.env.EMAIL_INBOUND_DOMAIN}
+              </p>
+            </div>
+          )}
         </div>
         <figure className="text-center">
           {/* QRCode returns a self-contained SVG string built from our own URL. */}

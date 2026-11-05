@@ -153,7 +153,7 @@ export async function upsertInquiry(tx: Tx, input: IntakeInput): Promise<IntakeR
               ${input.actorUserId ?? null})`);
   }
 
-  if (!openLead) await onLeadCreated(tx, { workspaceId, leadId, source: input.source });
+  if (!openLead) await onLeadCreated(tx, { workspaceId, leadId, source: input.source, actorUserId: input.actorUserId ?? null });
 
   return { contactId, leadId, contactCreated: !existing, leadCreated: !openLead, mergeConflict };
 }

@@ -161,6 +161,7 @@ function describe(item: TimelineItem): string {
     case "task": return `Task: ${p.title}${item.done_at ? " (done)" : ` · due ${fmt(item.due_at!)}`}`;
     case "form":
       if (p.event === "application_submitted") return "Submitted the application";
+      if (p.event === "email_inquiry") return `Inquiry by email${p.subject ? `: ${p.subject}` : ""}${p.forwarded_by ? ` (forwarded by ${p.forwarded_by})` : ""}`;
       return p.event === "inquiry_merged" ? "Sent another inquiry" : "Submitted the inquiry form";
     case "payment": {
       const amount = typeof p.amount_cents === "number" ? (p.amount_cents / 100).toLocaleString("en-US", { style: "currency", currency: "USD" }) : "";

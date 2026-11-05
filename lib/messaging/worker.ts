@@ -1,6 +1,7 @@
 import "server-only";
 import { serviceDb, type Database } from "@/lib/db";
 import { runDueDigests } from "@/lib/digest";
+import { deliverNotifications } from "@/lib/notifications";
 import { runDueSequenceSteps } from "./automations";
 import { deliverDueMessages } from "./send";
 import { defaultTransports, type Transports } from "./transports";
@@ -12,6 +13,7 @@ import { defaultTransports, type Transports } from "./transports";
 export async function tick(db: Database = serviceDb(), transports: Transports = defaultTransports()) {
   const sequences = await runDueSequenceSteps(db);
   const messages = await deliverDueMessages(db, transports);
+  const notifications = await deliverNotifications(db, transports);
   const digests = await runDueDigests(db, transports);
-  return { sequences, messages, digests };
+  return { sequences, messages, notifications, digests };
 }

@@ -361,35 +361,6 @@ export const users = pgTable("users", {
 	pgPolicy("self_update", { as: "permissive", for: "update", to: ["authenticated"] }),
 ]);
 
-export const memberships = pgTable("memberships", {
-	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
-	userId: uuid("user_id").notNull(),
-	workspaceId: uuid("workspace_id").notNull(),
-	role: text().notNull(),
-	expiresAt: timestamp("expires_at", { withTimezone: true, mode: 'string' }),
-	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-}, (table) => [
-	index("memberships_workspace_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops")),
-	foreignKey({
-			columns: [table.userId],
-			foreignColumns: [users.id],
-			name: "memberships_user_id_fkey"
-		}).onDelete("cascade"),
-	foreignKey({
-			columns: [table.workspaceId],
-			foreignColumns: [workspaces.id],
-			name: "memberships_workspace_id_fkey"
-		}).onDelete("cascade"),
-	unique("memberships_user_id_workspace_id_key").on(table.userId, table.workspaceId),
-	pgPolicy("member_read", { as: "permissive", for: "select", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))` }),
-	pgPolicy("owner_insert", { as: "permissive", for: "insert", to: ["authenticated"] }),
-	pgPolicy("owner_update", { as: "permissive", for: "update", to: ["authenticated"] }),
-	pgPolicy("owner_delete", { as: "permissive", for: "delete", to: ["authenticated"] }),
-	check("memberships_role_check", sql`role = ANY (ARRAY['owner'::text, 'staff'::text, 'support'::text])`),
-	check("memberships_check", sql`(role = 'support'::text) = (expires_at IS NOT NULL)`),
-]);
-
 export const waitlistEvents = pgTable("waitlist_events", {
 	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
 	workspaceId: uuid("workspace_id").notNull(),
@@ -476,6 +447,36 @@ export const forms = pgTable("forms", {
 	check("forms_kind_check", sql`kind = ANY (ARRAY['inquiry'::text, 'application'::text])`),
 	check("forms_fields_check", sql`jsonb_typeof(fields) = 'array'::text`),
 	check("forms_fields_max_15", sql`jsonb_array_length(fields) <= 15`),
+]);
+
+export const memberships = pgTable("memberships", {
+	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
+	userId: uuid("user_id").notNull(),
+	workspaceId: uuid("workspace_id").notNull(),
+	role: text().notNull(),
+	expiresAt: timestamp("expires_at", { withTimezone: true, mode: 'string' }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	notifyNewLeads: boolean("notify_new_leads").default(true).notNull(),
+}, (table) => [
+	index("memberships_workspace_idx").using("btree", table.workspaceId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [users.id],
+			name: "memberships_user_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.workspaceId],
+			foreignColumns: [workspaces.id],
+			name: "memberships_workspace_id_fkey"
+		}).onDelete("cascade"),
+	unique("memberships_user_id_workspace_id_key").on(table.userId, table.workspaceId),
+	pgPolicy("member_read", { as: "permissive", for: "select", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))` }),
+	pgPolicy("owner_insert", { as: "permissive", for: "insert", to: ["authenticated"] }),
+	pgPolicy("owner_update", { as: "permissive", for: "update", to: ["authenticated"] }),
+	pgPolicy("owner_delete", { as: "permissive", for: "delete", to: ["authenticated"] }),
+	check("memberships_role_check", sql`role = ANY (ARRAY['owner'::text, 'staff'::text, 'support'::text])`),
+	check("memberships_check", sql`(role = 'support'::text) = (expires_at IS NOT NULL)`),
 ]);
 
 export const templates = pgTable("templates", {
@@ -625,4 +626,40 @@ export const sequences = pgTable("sequences", {
 	unique("sequences_workspace_id_id_key").on(table.id, table.workspaceId),
 	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
 	check("sequences_system_key_check", sql`system_key = ANY (ARRAY['nurture'::text, 'application_reminder'::text, 'deposit_reminder'::text])`),
+]);
+
+export const notifications = pgTable("notifications", {
+	id: uuid().default(sql`app.uuid_v7()`).primaryKey().notNull(),
+	workspaceId: uuid("workspace_id").notNull(),
+	leadId: uuid("lead_id").notNull(),
+	userId: uuid("user_id").notNull(),
+	kind: text().notNull(),
+	status: text().default('queued').notNull(),
+	attempts: integer().default(0).notNull(),
+	lastError: text("last_error"),
+	sendAfter: timestamp("send_after", { withTimezone: true, mode: 'string' }),
+	sentAt: timestamp("sent_at", { withTimezone: true, mode: 'string' }),
+	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [
+	index("notifications_queue_idx").using("btree", sql`COALESCE(send_after, created_at)`).where(sql`(status = 'queued'::text)`),
+	foreignKey({
+			columns: [table.workspaceId],
+			foreignColumns: [workspaces.id],
+			name: "notifications_workspace_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [users.id],
+			name: "notifications_user_id_fkey"
+		}).onDelete("cascade"),
+	foreignKey({
+			columns: [table.workspaceId, table.leadId],
+			foreignColumns: [leads.id, leads.workspaceId],
+			name: "notifications_workspace_id_lead_id_fkey"
+		}).onDelete("cascade"),
+	unique("notifications_lead_id_user_id_kind_key").on(table.leadId, table.userId, table.kind),
+	pgPolicy("member_access", { as: "permissive", for: "all", to: ["authenticated"], using: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`, withCheck: sql`(workspace_id IN ( SELECT app.my_workspace_ids() AS my_workspace_ids))`  }),
+	check("notifications_kind_check", sql`kind = 'new_lead'::text`),
+	check("notifications_status_check", sql`status = ANY (ARRAY['queued'::text, 'sent'::text, 'failed'::text])`),
 ]);

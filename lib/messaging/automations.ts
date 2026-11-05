@@ -1,13 +1,14 @@
 import "server-only";
 import { sql } from "drizzle-orm";
 import type { Database, Tx } from "@/lib/db";
+import { queueNewLeadNotifications } from "@/lib/notifications";
 import { queueMessage } from "./send";
 
 // New lead (Automations table): auto-reply email, SMS too if consent was given,
-// and enrollment in the Nurture sequence. Runs inside the transaction that
+// enrollment in the Nurture sequence, and a new-lead email to the owner and assignee. Runs inside the transaction that
 // created the lead, so the messages exist exactly when the lead does. CSV
 // imports skip all of it (FR-07).
-export async function onLeadCreated(tx: Tx, params: { workspaceId: string; leadId: string; source: string }) {
+export async function onLeadCreated(tx: Tx, params: { workspaceId: string; leadId: string; source: string; actorUserId?: string | null }) {
   if (params.source === "import") return;
 
   const templates = (await tx.execute(sql`
@@ -24,6 +25,8 @@ export async function onLeadCreated(tx: Tx, params: { workspaceId: string; leadI
   }
 
   await enroll(tx, { workspaceId: params.workspaceId, leadId: params.leadId, sequence: "nurture" });
+  // Whoever added the lead by hand already knows about it.
+  await queueNewLeadNotifications(tx, params.workspaceId, params.leadId, params.actorUserId ?? null);
 }
 
 type Enrollment = {

@@ -13,6 +13,7 @@ const LINKS = [
   ["/app/settings/stages", "Pipeline stages", "Rename, reorder, add"],
   ["/app/settings/templates", "Templates", "Email and SMS wording"],
   ["/app/settings/sequences", "Sequences", "Nurture follow-ups"],
+  ["/app/settings/notifications", "Notifications", "New-lead emails to you"],
 ] as const;
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ stripe?: string }> }) {
