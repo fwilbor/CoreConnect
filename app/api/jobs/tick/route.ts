@@ -9,10 +9,10 @@ export const maxDuration = 60;
 
 // With Sentry configured, every tick checks in to the "job-tick" cron monitor,
 // so Sentry raises an alert when ticks stop (the scheduler is down) or fail.
-// The schedule matches vercel.json.
+// The schedule matches vercel.json (daily for now; "* * * * *" at launch).
 const MONITOR = {
-  schedule: { type: "crontab" as const, value: "* * * * *" },
-  checkinMargin: 5,
+  schedule: { type: "crontab" as const, value: "0 13 * * *" },
+  checkinMargin: 60,
   maxRuntime: 2,
   failureIssueThreshold: 3,
   recoveryThreshold: 1,

@@ -50,8 +50,9 @@ Server code reaches the database in two ways:
 ## Background jobs
 
 Outbound messages are queued in the `messages` table in the same transaction as
-the event that caused them. `/api/jobs/tick` (every minute via Vercel Cron, see
-`vercel.json`, or `pnpm jobs:dev` locally) runs due Nurture steps and delivers
+the event that caused them. `/api/jobs/tick` (Vercel Cron, see
+`vercel.json`: once a day during testing, every minute at launch; or `pnpm jobs:dev`
+locally) runs due Nurture steps and delivers
 queued messages with retries. Requests that queue a message also run a tick
 right after responding, so auto-replies go out in seconds.
 
