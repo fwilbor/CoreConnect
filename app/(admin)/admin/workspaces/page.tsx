@@ -2,7 +2,8 @@ import { desc } from "drizzle-orm";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { serviceDb } from "@/lib/db";
 import { workspaces } from "@/lib/db/schema";
-import { createWorkspaceAction } from "./actions";
+import { inboundWebhookUrl, twilioAccount } from "@/lib/sms-setup";
+import { assignSmsNumberAction, createWorkspaceAction, removeSmsNumberAction } from "./actions";
 
 export const metadata = { title: "Workspaces · CoreConnect admin" };
 
@@ -17,13 +18,19 @@ const input =
 export default async function AdminWorkspacesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ created?: string; invited?: string; error?: string; field?: string }>;
+  searchParams: Promise<{
+    created?: string; invited?: string; error?: string; field?: string;
+    sms?: string; sms_error?: string; number?: string; ws?: string;
+  }>;
 }) {
   await requirePlatformAdmin();
-  const { created, invited, error, field } = await searchParams;
+  const { created, invited, error, field, sms, sms_error: smsError, number, ws } = await searchParams;
+  const twilio = await twilioAccount();
+  const webhook = inboundWebhookUrl();
   const rows = await serviceDb()
     .select({ id: workspaces.id, name: workspaces.name, slug: workspaces.slug, type: workspaces.businessType,
-              billing: workspaces.billingStatus, createdAt: workspaces.createdAt })
+              billing: workspaces.billingStatus, createdAt: workspaces.createdAt,
+              smsNumber: workspaces.smsNumberE164, smsService: workspaces.twilioMessagingServiceSid, smsEnabled: workspaces.smsEnabled })
     .from(workspaces)
     .orderBy(desc(workspaces.createdAt));
 
@@ -91,6 +98,59 @@ export default async function AdminWorkspacesPage({
           ))}
         </tbody>
       </table>
+
+      <h2 className="mt-10 text-lg font-semibold">Texting numbers</h2>
+      <div className={`mt-2 rounded-md p-3 text-sm ${twilio.ok ? "bg-neutral-50 dark:bg-neutral-900" : "bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100"}`}>
+        {twilio.ok ? (
+          <>
+            <p>
+              Twilio connected{twilio.trial ? " (trial account: texts only reach verified numbers and start with a trial notice)" : ""}.
+              Buy numbers in Twilio, then assign one to each workspace here. The workspace owner turns texting on in Settings.
+            </p>
+            <p className="mt-1 text-neutral-500">
+              {webhook
+                ? <>Saving a number points its incoming texts at <code>{webhook}</code>.</>
+                : "This app has no public https URL (NEXT_PUBLIC_SITE_URL), so incoming-text webhooks aren't set. Save the number again after deploying."}
+            </p>
+          </>
+        ) : <p>{twilio.error}</p>}
+      </div>
+      <ul className="mt-3 space-y-3">
+        {rows.map((w) => {
+          const here = ws === w.id;
+          return (
+            <li key={w.id} id={`sms-${w.id}`} className="scroll-mt-4 rounded-md border border-neutral-200 p-3 text-sm dark:border-neutral-800">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="font-medium">{w.name}</span>
+                <span className="text-neutral-500">
+                  {w.smsNumber ? `${w.smsNumber}${w.smsService ? ` via ${w.smsService}` : ""} · texting ${w.smsEnabled ? "on" : "off"}` : "No number"}
+                </span>
+              </div>
+              <form action={assignSmsNumberAction} className="mt-2 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                <input type="hidden" name="workspaceId" value={w.id} />
+                <input name="number" required defaultValue={w.smsNumber ?? ""} placeholder="+13125550100" aria-label={`Texting number for ${w.name}`} className={input} />
+                <input name="messagingServiceSid" defaultValue={w.smsService ?? ""} placeholder="Messaging Service SID (optional)" aria-label={`Messaging Service SID for ${w.name}`} className={input} />
+                <button disabled={!twilio.ok} className="rounded-md bg-neutral-900 px-3 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-neutral-900">
+                  {w.smsNumber ? "Update" : "Assign"}
+                </button>
+              </form>
+              {w.smsNumber && (
+                <form action={removeSmsNumberAction} className="mt-2">
+                  <input type="hidden" name="workspaceId" value={w.id} />
+                  <button className="text-red-700 underline dark:text-red-400">Remove number (turns texting off)</button>
+                </form>
+              )}
+              {here && smsError && <p className="mt-2 text-red-600" role="alert">{smsError}</p>}
+              {here && (sms === "set" || sms === "skipped_local") && (
+                <p className="mt-2 text-green-700 dark:text-green-400" role="status">
+                  Saved {number}.{sms === "set" ? " Incoming texts now come to this app." : " Incoming-text webhook not set (no public URL yet)."}
+                </p>
+              )}
+              {here && sms === "removed" && <p className="mt-2 text-neutral-600" role="status">Number removed and texting turned off.</p>}
+            </li>
+          );
+        })}
+      </ul>
     </main>
   );
 }

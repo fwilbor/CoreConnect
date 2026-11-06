@@ -55,8 +55,8 @@ export function BusinessForm({ initial, timezones }: {
         <legend className="px-1 font-medium">Text messages</legend>
         <p className="text-neutral-500">
           {initial.smsNumber
-            ? `Your texting number is ${initial.smsNumber}.`
-            : "No texting number yet. CoreStore sets one up once carrier registration (10DLC) is approved."}
+            ? `Texts go out from ${initial.smsNumber}, and replies land in your Inbox. Only people who agreed to texts on your form get them; anyone can reply STOP.`
+            : "No texting number yet. We set one up for you once US carriers approve your business for texting (10DLC registration), usually within 1–3 weeks. Until then, everything goes by email."}
         </p>
         <label className="mt-2 flex items-center gap-2">
           <input type="checkbox" name="smsEnabled" defaultChecked={initial.smsEnabled} disabled={!initial.smsNumber} />

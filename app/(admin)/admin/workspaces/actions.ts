@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { serviceDb } from "@/lib/db";
+import { assignSmsNumber, removeSmsNumber } from "@/lib/sms-setup";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createWorkspace, CreateWorkspaceInput } from "@/lib/workspaces/create";
 
@@ -35,4 +36,26 @@ export async function createWorkspaceAction(formData: FormData) {
 
   if (!result.ok) redirect("/admin/workspaces?error=slug_taken");
   redirect(`/admin/workspaces?created=${encodeURIComponent(parsed.data.slug)}${result.invited ? "&invited=1" : ""}`);
+}
+
+// Texting number for a workspace (lib/sms-setup.ts checks it against Twilio).
+export async function assignSmsNumberAction(formData: FormData) {
+  await requirePlatformAdmin();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const result = await assignSmsNumber(serviceDb(), {
+    workspaceId,
+    number: String(formData.get("number") ?? ""),
+    messagingServiceSid: String(formData.get("messagingServiceSid") ?? ""),
+  });
+  const q = result.ok
+    ? `sms=${result.webhook}&number=${encodeURIComponent(result.number)}`
+    : `sms_error=${encodeURIComponent(result.error)}`;
+  redirect(`/admin/workspaces?${q}&ws=${workspaceId}#sms-${workspaceId}`);
+}
+
+export async function removeSmsNumberAction(formData: FormData) {
+  await requirePlatformAdmin();
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  await removeSmsNumber(serviceDb(), workspaceId);
+  redirect(`/admin/workspaces?sms=removed&ws=${workspaceId}#sms-${workspaceId}`);
 }
